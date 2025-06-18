@@ -1,43 +1,75 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import '../../styles/RegisterForm.css';
+import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { createUserWithEmailAndPassword } from 'firebase/auth'
+import { auth } from '../../services/firebase'
+import '../../styles/RegisterForm.css'
 
 const RegisterForm = () => {
-  const navigate = useNavigate();
+  const navigate = useNavigate()
+
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [fullName, setFullName] = useState('')
+  const [username, setUsername] = useState('')
+  const [error, setError] = useState('')
+
+  const handleRegister = async () => {
+    try {
+      // Étape 1: Créer un compte avec Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+
+      // Étape 2: Récupérer un token Firebase
+      const token = await userCredential.user.getIdToken()
+
+      // Étape 3: Appeler le backend pour enregistrer l'utilisateur dans Firestore
+      const res = await fetch('http://localhost:3000/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          name: fullName,
+          username
+        })
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+
+      // Étape 4: Rediriger ou afficher un message de succès
+      navigate('/chat') // ou /login ou /dashboard
+
+    } catch (err) {
+      console.error(err)
+      setError('Échec de la création du compte.')
+    }
+  }
+
   return (
     <div className="login-container">
-      {/* Header */}
       <header className="login-header">
         <div className="logo-area">
-          <div className="logo-icon">
-            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path fill="currentColor" d="M39.475 21.6262C40.358 21.4363 40.6863 21.5589 40.7581 21.5934C40.7876 21.655 40.8547 21.857 40.8082 22.3336C40.7408 23.0255 40.4502 24.0046 39.8572 25.2301C38.6799 27.6631 36.5085 30.6631 33.5858 33.5858C30.6631 36.5085 27.6632 38.6799 25.2301 39.8572C24.0046 40.4502 23.0255 40.7407 22.3336 40.8082C21.8571 40.8547 21.6551 40.7875 21.5934 40.7581C21.5589 40.6863 21.4363 40.358 21.6262 39.475C21.8562 38.4054 22.4689 36.9657 23.5038 35.2817C24.7575 33.2417 26.5497 30.9744 28.7621 28.762C30.9744 26.5497 33.2417 24.7574 35.2817 23.5037C36.9657 22.4689 38.4054 21.8562 39.475 21.6262Z" />
-            </svg>
-          </div>
+          <div className="logo-icon">{/* Ton SVG ici */}</div>
           <div className="logo-text">ChatApp</div>
         </div>
-       
-        <button 
-        onClick={() => navigate('/login')}
-        className="header-login-btn">Log In</button>
+        <button onClick={() => navigate('/login')} className="header-login-btn">Log In</button>
       </header>
 
-      {/* Form */}
       <main className="form-wrapper">
         <div className="login-box">
           <h2>Create your account</h2>
-          <input type="email" placeholder="Email address" />
-          <input type="password" placeholder="Password" />
-          <input type="text" placeholder="Full name" />
-          <input type="text" placeholder="Username" />
-          <button className="submit-btn">Create account</button>
+          <input type="email" placeholder="Email address" value={email} onChange={e => setEmail(e.target.value)} />
+          <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} />
+          <input type="text" placeholder="Full name" value={fullName} onChange={e => setFullName(e.target.value)} />
+          <input type="text" placeholder="Username" value={username} onChange={e => setUsername(e.target.value)} />
+          <button className="submit-btn" onClick={handleRegister}>Create account</button>
+          {error && <p className="text-red-500 mt-2">{error}</p>}
           <p className="signup-link">
             By signing up, you agree to our <a href="#">Terms</a>, <a href="#">Privacy Policy</a> and <a href="#">Cookie Use</a>.
           </p>
         </div>
       </main>
     </div>
-  );
-};
+  )
+}
 
-export default RegisterForm;
+export default RegisterForm
