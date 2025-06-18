@@ -45,7 +45,7 @@ const Chat = () => {
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
     },
     sidebar: {
-      width: '320px',
+      width: '250px',
       backgroundColor: '#2a2a2a',
       borderRight: '1px solid #3a3a3a',
       display: 'flex',
