@@ -3,7 +3,17 @@ import React, { useState } from 'react';
 const Chat = () => {
   const [selectedContact, setSelectedContact] = useState('Ryan Bennett');
   const [message, setMessage] = useState('');
+  const [Messages, setMessages] = useState([]);
 
+ const sendMessage = () => {
+    if (message.trim() === "") return;
+    setMessages([...messages, message]);
+    setMessage("");
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === "Enter") sendMessage();
+  };
   const contacts = [
     { name: 'Ryan Bennett', lastMessage: 'Last message preview...', avatar: 'https://randomuser.me/api/portraits/men/32.jpg' },
     { name: 'Olivia Carter', lastMessage: 'Last message preview...', avatar: 'https://randomuser.me/api/portraits/women/44.jpg' },
