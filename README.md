@@ -1,12 +1,48 @@
-# React + Vite
+# 🛡️ SafeX – Plateforme Sécurisée de Communication
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+SafeX (Safe eXchanges) est une **plateforme web sécurisée de communication et de collaboration** en temps réel, conçue pour offrir **confidentialité**, **intégrité** et **disponibilité** des échanges, dans un monde où les cybermenaces sont omniprésentes.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 🎯 Objectif du Projet
 
-## Expanding the ESLint configuration
+Dans un contexte de surveillance numérique, fuites de données et cyberattaques avancées, SafeX vise à fournir :
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- Une **messagerie instantanée sécurisée**
+- Un **système de fichiers chiffrés**
+- Une **interface moderne et responsive**
+- Une **sécurité intégrée dès la conception** (DevSecOps)
+
+---
+
+## 🔐 Caractéristiques clés
+
+- 🔑 **Authentification multi-facteurs (2FA)**
+- 🧑‍💼 **Contrôle d'accès basé sur les rôles (RBAC)**
+- 📜 **Journalisation complète des activités**
+- 🔒 **Chiffrement de bout en bout des messages et fichiers**
+- 🧬 **Chiffrement quantique (QKD)** – protection ultime contre les attaquants quantiques
+
+---
+
+---
+
+## 🧠 Technologies prévues
+
+- **Frontend** : React.js
+- **Backend** : Firebase, sockets sécurisés
+- **Sécurité** : Authentification 2FA, HTTPS, QKD
+- **DevOps** : Intégration continue, audit de sécurité, tests automatisés
+
+---
+
+## ⚠️ Menaces traitées
+
+- 🧑‍💻 Attaquant externe (XSS, SQLi, MITM)
+- 🦠 Utilisateur interne malveillant
+- 👮 Administrateur compromis
+- 🌐 Attaques DDoS
+- 📂 Fichiers piégés
+- ⚛️ Attaques quantiques (grâce à la QKD)
+---
+
