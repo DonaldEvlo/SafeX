@@ -55,4 +55,19 @@ router.post('/login', async (req, res) => {
   }
 })
 
+
+router.post('/logout', async (req, res) => {
+  const { token } = req.body
+
+  try {
+    const decoded = await admin.auth().verifyIdToken(token)
+    await admin.auth().revokeRefreshTokens(decoded.uid)
+
+    res.status(200).json({ message: 'Déconnexion réussie (token révoqué)' })
+  } catch (error) {
+    console.error('Erreur logout:', error)
+    res.status(400).json({ error: 'Impossible de déconnecter' })
+  }
+})
+
 module.exports = router

@@ -1,378 +1,275 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { getAuth, signOut } from 'firebase/auth';
+import {
+  addDoc,
+  collection,
+  getDocs,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  where
+} from 'firebase/firestore';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { db } from '../services/firebase'; // Ton fichier firebase.js où tu exportes 'db'
+import { decryptMessage, encryptMessage } from '../utils/encryption';
+
+function generateConversationId(uid1, uid2) {
+  return uid1 < uid2 ? `${uid1}_${uid2}` : `${uid2}_${uid1}`;
+}
 
 const Chat = () => {
-  const [selectedContact, setSelectedContact] = useState('Ryan Bennett');
+  const auth = getAuth();
+  const currentUser = auth.currentUser;
+  const navigate = useNavigate();
+
+  const [contacts, setContacts] = useState([]);
+  const [selectedContact, setSelectedContact] = useState(null);
+  const [messages, setMessages] = useState([]);
   const [message, setMessage] = useState('');
-  const [Messages, setMessages] = useState([]);
 
- const sendMessage = () => {
-    if (message.trim() === "") return;
-    setMessages([...messages, message]);
-    setMessage("");
-  };
+  // Charger tous les utilisateurs sauf celui connecté
+  useEffect(() => {
+    if (!currentUser) {
+      console.log('[Chat] Aucun utilisateur connecté');
+      return;
+    }
+    console.log('[Chat] Utilisateur connecté:', currentUser.uid);
 
-  const handleKeyPress = (e) => {
-    if (e.key === "Enter") sendMessage();
-  };
-  const contacts = [
-    { name: 'Ryan Bennett', lastMessage: 'Last message preview...', avatar: 'https://randomuser.me/api/portraits/men/32.jpg' },
-    { name: 'Olivia Carter', lastMessage: 'Last message preview...', avatar: 'https://randomuser.me/api/portraits/women/44.jpg' },
-    { name: 'Owen Davis', lastMessage: 'Last message preview...', avatar: 'https://randomuser.me/api/portraits/men/25.jpg' },
-    { name: 'Chloe Foster', lastMessage: 'Last message preview...', avatar: 'https://randomuser.me/api/portraits/women/68.jpg' },
-    { name: 'Nathan Hughes', lastMessage: 'Last message preview...', avatar: 'https://randomuser.me/api/portraits/men/15.jpg' },
-    { name: 'Ava Jenkins', lastMessage: 'Last message preview...', avatar: 'https://randomuser.me/api/portraits/women/23.jpg' },
-    { name: 'Liam Knight', lastMessage: 'Last message preview...', avatar: 'https://randomuser.me/api/portraits/men/67.jpg' },
-    { name: 'Mia Lawson', lastMessage: 'Last message preview...', avatar: 'https://randomuser.me/api/portraits/women/32.jpg' },
-    { name: 'Lucas Morgan', lastMessage: 'Last message preview...', avatar: 'https://randomuser.me/api/portraits/men/41.jpg' },
-    { name: 'Sophie Nolan', lastMessage: 'Last message preview...', avatar: 'https://randomuser.me/api/portraits/women/55.jpg' }
-  ];
+    const fetchUsers = async () => {
+      try {
+        const usersCol = collection(db, 'users');
+        const q = query(usersCol, where('uid', '!=', currentUser.uid));
+        const querySnapshot = await getDocs(q);
+        const usersList = [];
+        querySnapshot.forEach(doc => {
+          usersList.push(doc.data());
+        });
+        console.log('[Chat] Utilisateurs récupérés:', usersList);
+        setContacts(usersList);
+      } catch (error) {
+        console.error('[Chat] Erreur lors de la récupération des utilisateurs:', error);
+      }
+    };
 
-  const messages = [
-    { sender: 'Ryan Bennett', text: "Hey there! How's it going?", isOwn: false },
-    { sender: 'You', text: "Hi Ryan! I'm doing great, thanks! How about you?", isOwn: true },
-    { sender: 'Ryan Bennett', text: "I'm doing well too, just finished a big project at work. What have you been up to?", isOwn: false },
-    { sender: 'You', text: "That's awesome! I've been working on a new design project, it's been pretty challenging but rewarding.", isOwn: true },
-    { sender: 'Ryan Bennett', text: "Sounds interesting! What kind of design project is it?", isOwn: false },
-    { sender: 'You', text: "It's a web application for secure chatting, actually. Trying to make it user-friendly and secure at the same time.", isOwn: true },
-    { sender: 'Ryan Bennett', text: "No way! That's exactly what I'm working on too! What a coincidence!", isOwn: false },
-    { sender: 'You', text: "That's crazy! Maybe we can share some ideas?", isOwn: true }
-  ];
+    fetchUsers();
+  }, [currentUser]);
 
-  const handleSendMessage = () => {
-    if (message.trim()) {
-      console.log('Sending message:', message);
+  // Gestion de la conversation sélectionnée
+  useEffect(() => {
+    if (!selectedContact || !currentUser) {
+      console.log('[Chat] Pas de contact sélectionné ou utilisateur non connecté');
+      setMessages([]);
+      return;
+    }
+
+    const conversationId = generateConversationId(currentUser.uid, selectedContact.uid);
+    console.log('[Chat] Écoute messages pour conversation:', conversationId);
+
+    const messagesRef = collection(db, 'conversations', conversationId, 'messages');
+    const q = query(messagesRef, orderBy('timestamp', 'asc'));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const msgs = [];
+      snapshot.forEach(doc => {
+        msgs.push(doc.data());
+      });
+      console.log(`[Chat] Messages reçus pour ${conversationId} :`, msgs);
+      setMessages(msgs);
+    }, (error) => {
+      console.error('[Chat] Erreur écoute messages:', error);
+    });
+
+    return () => {
+      console.log('[Chat] Désabonnement écoute messages pour conversation:', conversationId);
+      unsubscribe();
+    };
+  }, [selectedContact, currentUser]);
+
+  const handleSendMessage = async () => {
+    if (!message.trim() || !selectedContact) {
+      console.log('[Chat] Message vide ou aucun contact sélectionné');
+      return;
+    }
+
+    const conversationId = generateConversationId(currentUser.uid, selectedContact.uid);
+    const messagesRef = collection(db, 'conversations', conversationId, 'messages');
+
+    try {
+      console.log(`[Chat] Envoi message à ${conversationId}:`, message);
+      await addDoc(messagesRef, {
+        senderId: currentUser.uid,
+        senderName: currentUser.displayName || 'You',
+        text: encryptMessage(message.trim()),
+        timestamp: serverTimestamp()
+      });
       setMessage('');
+
+      // Audit: Message envoyé
+      const token = await currentUser.getIdToken();
+
+await fetch('http://localhost:3000/api/messages/log', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  },
+  body: JSON.stringify({
+    senderId: currentUser.uid,
+    recipientId: selectedContact.uid,
+    text: "Message"
+  })
+});
+
+    } catch (error) {
+      console.error('[Chat] Erreur lors de l\'envoi du message:', error);
     }
   };
+
+  const handleLogout = async () => {
+  try {
+    console.log('[Chat] Déconnexion...');
+    const token = await currentUser.getIdToken();
+
+    // Backend logout
+    await fetch('http://localhost:3000/api/auth/logout', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ token }),
+    });
+
+    // Audit: Déconnexion
+    await fetch('http://localhost:3000/api/audit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        userId: currentUser.uid,
+        action: 'Déconnexion',
+        details: {
+          browser: navigator.userAgent,
+          localTime: new Date().toLocaleString()
+        }
+      })
+    });
+
+    await signOut(auth);
+    console.log('[Chat] Déconnexion réussie');
+    navigate('/login');
+  } catch (error) {
+    console.error('[Chat] Erreur lors de la déconnexion:', error);
+  }
+};
 
   const styles = {
-    chatContainer: {
-      display: 'flex',
-      height: '100vh',
-      width: '100%',
-      backgroundColor: '#1a1a1a',
-      color: '#ffffff',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-    },
-    sidebar: {
-      width: '250px',
-      backgroundColor: '#2a2a2a',
-      borderRight: '1px solid #3a3a3a',
-      display: 'flex',
-      flexDirection: 'column',
-      flexShrink: 0
-    },
-    searchContainer: {
-      padding: '16px',
-      borderBottom: '1px solid #3a3a3a'
-    },
-    searchBar: {
-      display: 'flex',
-      alignItems: 'center',
-      backgroundColor: '#3a3a3a',
-      borderRadius: '8px',
-      padding: '0 12px',
-      height: '40px'
-    },
-    searchIcon: {
-      width: '18px',
-      height: '18px',
-      color: '#8a8a8a',
-      marginRight: '8px',
-      strokeWidth: '2'
-    },
-    searchInput: {
-      background: 'transparent',
-      border: 'none',
-      outline: 'none',
-      color: '#ffffff',
-      flex: '1',
-      fontSize: '14px'
-    },
-    contactList: {
-      flex: '1',
-      overflowY: 'auto'
-    },
-    contactItem: {
-      display: 'flex',
-      alignItems: 'center',
-      padding: '12px 16px',
-      cursor: 'pointer',
-      transition: 'background-color 0.2s ease',
-      borderBottom: '1px solid #353535'
-    },
-    activeContact: {
-      backgroundColor: '#404040'
-    },
-    contactAvatar: {
-      width: '48px',
-      height: '48px',
-      borderRadius: '50%',
-      marginRight: '12px',
-      objectFit: 'cover'
-    },
-    contactInfo: {
-      flex: '1',
-      minWidth: '0'
-    },
-    contactName: {
-      margin: '0 0 4px 0',
-      fontSize: '16px',
-      fontWeight: '500',
-      color: '#ffffff',
-      whiteSpace: 'nowrap',
-      overflow: 'hidden',
-      textOverflow: 'ellipsis'
-    },
-    lastMessage: {
-      margin: '0',
-      fontSize: '13px',
-      color: '#8a8a8a',
-      whiteSpace: 'nowrap',
-      overflow: 'hidden',
-      textOverflow: 'ellipsis'
-    },
-    chatArea: {
-      flex: '1',
-      display: 'flex',
-      flexDirection: 'column',
-      backgroundColor: '#1a1a1a',
-      minWidth: 0
-    },
-    chatHeader: {
-      padding: '16px 24px',
-      borderBottom: '1px solid #3a3a3a',
-      backgroundColor: '#2a2a2a',
-      flexShrink: 0
-    },
-    chatTitle: {
-      margin: '0 0 4px 0',
-      fontSize: '24px',
-      fontWeight: '600',
-      color: '#ffffff'
-    },
-    onlineStatus: {
-      margin: '0',
-      fontSize: '14px',
-      color: '#4ade80'
-    },
-    messagesContainer: {
-      flex: '1',
-      overflowY: 'auto',
-      padding: '24px 24px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '16px'
-    },
-    messageWrapper: {
-      display: 'flex',
-      alignItems: 'flex-end',
-      gap: '12px',
-      width: '100%'
-    },
-    ownMessage: {
-      flexDirection: 'row-reverse'
-    },
-    otherMessage: {
-      flexDirection: 'row'
-    },
-    messageAvatar: {
-      width: '36px',
-      height: '36px',
-      borderRadius: '50%',
-      objectFit: 'cover',
-      flexShrink: 0
-    },
-    messageContent: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '4px',
-      maxWidth: '70%',
-      minWidth: '200px'
-    },
-    ownMessageContent: {
-      alignItems: 'flex-end'
-    },
-    otherMessageContent: {
-      alignItems: 'flex-start'
-    },
-    messageSender: {
-      margin: '0',
-      fontSize: '12px',
-      color: '#8a8a8a',
-      fontWeight: '500'
-    },
-    messageBubble: {
-      padding: '12px 16px',
-      borderRadius: '18px',
-      fontSize: '14px',
-      lineHeight: '1.4',
-      wordWrap: 'break-word',
-      wordBreak: 'break-word'
-    },
-    ownBubble: {
-      backgroundColor: '#007AFF',
-      color: '#ffffff'
-    },
-    otherBubble: {
-      backgroundColor: '#3a3a3a',
-      color: '#ffffff'
-    },
-    messageInputContainer: {
-      padding: '16px 24px',
-      borderTop: '1px solid #3a3a3a',
-      backgroundColor: '#2a2a2a',
-      flexShrink: 0
-    },
-    messageInputWrapper: {
-      display: 'flex',
-      alignItems: 'center',
-      backgroundColor: '#3a3a3a',
-      borderRadius: '24px',
-      padding: '8px 16px',
-      gap: '12px'
-    },
-    messageInput: {
-      flex: '1',
-      background: 'transparent',
-      border: 'none',
-      outline: 'none',
-      color: '#ffffff',
-      fontSize: '14px',
-      padding: '8px 0'
-    },
-    attachIcon: {
-      width: '20px',
-      height: '20px',
-      color: '#8a8a8a',
-      cursor: 'pointer',
-      strokeWidth: '2',
-      transition: 'color 0.2s ease'
-    },
-    sendButton: {
-      backgroundColor: '#007AFF',
-      color: '#ffffff',
-      border: 'none',
-      borderRadius: '16px',
-      padding: '8px 16px',
-      fontSize: '14px',
-      fontWeight: '600',
-      cursor: 'pointer',
-      transition: 'background-color 0.2s ease'
-    }
+    chatContainer: { display: 'flex', height: '100vh', backgroundColor: '#1a1a1a', color: '#fff', fontFamily: 'sans-serif' },
+    sidebar: { width: '250px', backgroundColor: '#2a2a2a', borderRight: '1px solid #3a3a3a', display: 'flex', flexDirection: 'column' },
+    contactList: { flex: 1, overflowY: 'auto' },
+    contactItem: { padding: '12px', cursor: 'pointer', borderBottom: '1px solid #353535', display: 'flex', alignItems: 'center' },
+    activeContact: { backgroundColor: '#404040' },
+    contactAvatar: { width: 40, height: 40, borderRadius: '50%', marginRight: 12, objectFit: 'cover' },
+    contactName: { fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+    chatArea: { flex: 1, display: 'flex', flexDirection: 'column' },
+    chatHeader: { padding: 16, borderBottom: '1px solid #3a3a3a', backgroundColor: '#2a2a2a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+    messagesContainer: { flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 },
+    messageWrapper: { display: 'flex', alignItems: 'flex-end' },
+    ownMessage: { justifyContent: 'flex-end' },
+    otherMessage: { justifyContent: 'flex-start' },
+    messageBubble: { padding: '8px 12px', borderRadius: 16, maxWidth: '60%', wordWrap: 'break-word' },
+    ownBubble: { backgroundColor: '#007AFF', color: '#fff' },
+    otherBubble: { backgroundColor: '#3a3a3a', color: '#fff' },
+    messageInputContainer: { padding: 16, borderTop: '1px solid #3a3a3a', backgroundColor: '#2a2a2a', display: 'flex' },
+    messageInput: { flex: 1, padding: '8px 12px', borderRadius: 20, border: 'none', outline: 'none', fontSize: 16, backgroundColor: '#3a3a3a', color: '#fff' },
+    sendButton: { marginLeft: 12, padding: '8px 16px', borderRadius: 20, backgroundColor: '#007AFF', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }
   };
 
   return (
     <div style={styles.chatContainer}>
-      {/* Sidebar */}
       <div style={styles.sidebar}>
-        {/* Search Bar */}
-        <div style={styles.searchContainer}>
-          <div style={styles.searchBar}>
-            <svg style={styles.searchIcon} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <circle cx="11" cy="11" r="8"/>
-              <path d="m21 21-4.35-4.35"/>
-            </svg>
-            <input 
-              type="text" 
-              placeholder="Search" 
-              style={styles.searchInput}
-            />
-          </div>
+        <div style={{ padding: 16, borderBottom: '1px solid #3a3a3a' }}>
+          <input
+            type="text"
+            placeholder="Search contacts..."
+            style={{ width: '100%', padding: 8, borderRadius: 8, border: 'none', outline: 'none', backgroundColor: '#3a3a3a', color: '#fff' }}
+          />
         </div>
-
-        {/* Contact List */}
         <div style={styles.contactList}>
-          {contacts.map((contact, index) => (
-            <div 
-              key={index} 
+          {contacts.map((contact) => (
+            <div
+              key={contact.uid}
               style={{
                 ...styles.contactItem,
-                ...(selectedContact === contact.name ? styles.activeContact : {})
+                ...(selectedContact?.uid === contact.uid ? styles.activeContact : {})
               }}
-              onClick={() => setSelectedContact(contact.name)}
+              onClick={() => {
+                console.log('[Chat] Contact sélectionné:', contact.name, contact.uid);
+                setSelectedContact(contact);
+              }}
             >
-              <img 
-                src={contact.avatar} 
-                alt={contact.name}
-                style={styles.contactAvatar}
-              />
-              <div style={styles.contactInfo}>
-                <h3 style={styles.contactName}>{contact.name}</h3>
-                <p style={styles.lastMessage}>{contact.lastMessage}</p>
+              <img src={contact.profileUrl || contact.avatar || 'https://randomuser.me/api/portraits/lego/1.jpg'} alt={contact.name} style={styles.contactAvatar} />
+              <div>
+                <div style={styles.contactName}>{contact.name}</div>
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Chat Area */}
       <div style={styles.chatArea}>
-        {/* Chat Header */}
         <div style={styles.chatHeader}>
-          <h2 style={styles.chatTitle}>Ryan Bennett</h2>
-          <p style={styles.onlineStatus}>Online</p>
+          <div>{selectedContact ? selectedContact.name : 'Sélectionne un contact'}</div>
+          <button style={styles.sendButton} onClick={handleLogout}>Déconnexion</button>
         </div>
 
-        {/* Messages */}
         <div style={styles.messagesContainer}>
-          {messages.map((msg, index) => (
-            <div key={index} style={{
-              ...styles.messageWrapper,
-              ...(msg.isOwn ? styles.ownMessage : styles.otherMessage)
-            }}>
-              {!msg.isOwn && (
-                <img 
-                  src="https://randomuser.me/api/portraits/men/32.jpg" 
-                  alt="Ryan Bennett"
-                  style={styles.messageAvatar}
-                />
-              )}
-              <div style={{
-                ...styles.messageContent,
-                ...(msg.isOwn ? styles.ownMessageContent : styles.otherMessageContent)
-              }}>
-                <p style={styles.messageSender}>{msg.sender}</p>
-                <div style={{
-                  ...styles.messageBubble,
-                  ...(msg.isOwn ? styles.ownBubble : styles.otherBubble)
+          {!selectedContact && <p style={{ textAlign: 'center', color: '#888' }}>Sélectionne un contact pour commencer à discuter</p>}
+
+          {messages.map((msg, i) => {
+            const isOwn = msg.senderId === currentUser.uid;
+            let decryptedText = '';
+
+            try {
+              decryptedText = decryptMessage(msg.text);
+            } catch (err) {
+              console.error('[Chat] Erreur de déchiffrement pour message:', msg, err);
+              decryptedText = '[Message illisible]';
+            }
+
+            return (
+              <div
+                key={i}
+                style={{ ...styles.messageWrapper, justifyContent: isOwn ? 'flex-end' : 'flex-start' }}
+              >
+                <div style={{ 
+                  ...styles.messageBubble, 
+                  ...(isOwn ? styles.ownBubble : styles.otherBubble) 
                 }}>
-                  {msg.text}
+                  {decryptedText}
                 </div>
               </div>
-              {msg.isOwn && (
-                <img 
-                  src="https://randomuser.me/api/portraits/women/44.jpg" 
-                  alt="You"
-                  style={styles.messageAvatar}
-                />
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
 
-        {/* Message Input */}
-        <div style={styles.messageInputContainer}>
-          <div style={styles.messageInputWrapper}>
+        {selectedContact && (
+          <div style={styles.messageInputContainer}>
             <input
               type="text"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder="Type a message"
-              style={styles.messageInput}
               onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+              placeholder="Tape ton message"
+              style={styles.messageInput}
             />
-            <svg style={styles.attachIcon} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66L9.64 16.2a2 2 0 0 1-2.83-2.83l8.49-8.49"/>
-            </svg>
-            <button 
-              style={styles.sendButton}
-              onClick={handleSendMessage}
-            >
-              Send
-            </button>
+            <button onClick={handleSendMessage} style={styles.sendButton}>Envoyer</button>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

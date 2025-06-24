@@ -13,7 +13,12 @@ app.get('/', (req, res) => {
 
 // Routes
 const authRoutes = require('./routes/auth')
+const auditRoutes = require('./routes/audit');
 app.use('/api/auth', authRoutes)
+app.use('/api/messages', require('./routes/messages'));
+
+app.use('/api/audit', auditRoutes);
+
 
 // Port
 const PORT = process.env.PORT || 3000
