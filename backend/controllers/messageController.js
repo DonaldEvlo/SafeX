@@ -1,3 +1,4 @@
+const admin = require('../services/firebaseAdmin');
 const logAudit = require('../middleware/auditLogger');
 
 exports.logMessageSend = async (req, res) => {
@@ -19,5 +20,28 @@ exports.logMessageSend = async (req, res) => {
   } catch (err) {
     console.error('[Audit] Erreur audit message:', err);
     res.status(500).json({ error: 'Erreur lors de l’audit du message' });
+  }
+};
+
+exports.getMessageCount = async (req, res) => {
+  try {
+    console.log('🔍 Démarrage du comptage des messages...');
+
+    // Requête sur toutes les sous-collections nommées "messages"
+    const messagesSnapshot = await admin.firestore()
+      .collectionGroup('messages')
+      .get();
+
+    console.log(`📊 Nombre total de messages récupérés : ${messagesSnapshot.size}`);
+
+    // Optionnel : afficher les IDs des messages pour debug
+    messagesSnapshot.docs.forEach(doc => {
+      console.log(`Message ID: ${doc.id}`);
+    });
+
+    res.status(200).json({ count: messagesSnapshot.size });
+  } catch (err) {
+    console.error('❌ Erreur récupération messages:', err);
+    res.status(500).json({ error: 'Erreur serveur (getMessageCount)' });
   }
 };

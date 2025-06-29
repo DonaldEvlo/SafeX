@@ -1,9 +1,10 @@
   import React, { useState } from 'react'
   import UsersSection from '../components/Admin/UsersSection'
   import LogsSection from '../components/Admin/LogsSection'
+  import DashboardSection from '../components/Admin/DashboardSection'
 
   const AdminLogs = () => {
-    const [activeSection, setActiveSection] = useState('users')
+    const [activeSection, setActiveSection] = useState('dashboard')
 
     return (
       <div className="flex min-h-screen bg-[#111418] text-white">
@@ -43,6 +44,8 @@
 
           {activeSection === 'users' && <UsersSection />}
           {activeSection === 'logs' && <LogsSection />}
+          {activeSection === 'dashboard' && <DashboardSection />}
+
         </main>
       </div>
     )

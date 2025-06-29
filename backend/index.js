@@ -19,9 +19,6 @@ app.use('/api/messages', require('./routes/messages'));
 
 app.use('/api/audit', auditRoutes);
 app.use('/api/users', require('./routes/users'))
-app.use('/api/audit', auditRoutes);
-
-
 
 
 // Port
