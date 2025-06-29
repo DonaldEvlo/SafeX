@@ -6,6 +6,7 @@ import LoginForm from "./components/Auth/LoginForm";
 import RegisterForm from "./components/Auth/RegisterForm";
 import Profile from "./pages/Profile";
 import Verify2FA from './pages/Verify2FA'
+import AdminLogs from './pages/AdminLogs';
 // import Navbar from "./components/Shared/Navbar";
 // import { useAuth } from "./utils/auth";
 
@@ -31,6 +32,8 @@ export default function App() {
           <Route path="/register" element={<RegisterForm/>} />
           <Route path="/profile" element={<Profile/>} />
           <Route path="/verify-2fa" element={<Verify2FA />} />
+          <Route path="/admin-log" element={<AdminLogs />} />
+
           {/* <Route
             path="/admin/logs"
             element={
