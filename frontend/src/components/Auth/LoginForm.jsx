@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { signInWithEmailAndPassword } from 'firebase/auth'
-import { auth } from '../../services/firebase' // <-- Assure-toi que ça pointe bien ici
+import { auth } from '../../services/firebase'
 import '../../styles/LoginForm.css'
 
 const LoginForm = () => {
@@ -12,11 +12,10 @@ const LoginForm = () => {
 
   const handleLogin = async () => {
     try {
-      // 🔐 Firebase Auth login
       const userCredential = await signInWithEmailAndPassword(auth, email, password)
       const token = await userCredential.user.getIdToken()
 
-      // 🌐 Appel à ton backend SafeX pour valider le token
+      // 🌐 Vérification côté backend
       const res = await fetch('http://localhost:3000/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -24,17 +23,16 @@ const LoginForm = () => {
       })
 
       const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Échec connexion')
 
-      if (!res.ok) {
-        throw new Error(data.error || 'Login failed')
-      }
+      // 🔐 Sauvegarde du token localement pour les appels futurs
+      localStorage.setItem('token', token)
 
-      console.log('✅ Connected as:', data.email)
-      navigate('/chat') // ou la route protégée que tu veux
-
+      // Redirection vers vérification 2FA
+      navigate('/verify-2fa')
     } catch (err) {
       console.error('Erreur login:', err)
-      setError('Invalid email or password')
+      setError('❌ Email ou mot de passe incorrect')
     }
   }
 
@@ -62,7 +60,7 @@ const LoginForm = () => {
           <h2>Log in to SafeX</h2>
           <input
             type="text"
-            placeholder="Email or phone number"
+            placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
