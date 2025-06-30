@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createUserWithEmailAndPassword } from 'firebase/auth'
 import { auth } from '../../services/firebase'
@@ -8,55 +8,114 @@ const RegisterForm = () => {
   const navigate = useNavigate()
 
   const [email, setEmail] = useState('')
+  const [emailError, setEmailError] = useState('')
+
   const [password, setPassword] = useState('')
+  const [passwordError, setPasswordError] = useState('')
+  const [passwordStrength, setPasswordStrength] = useState('')
+
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [confirmPasswordError, setConfirmPasswordError] = useState('')
+
   const [fullName, setFullName] = useState('')
+  const [fullNameError, setFullNameError] = useState('')
+
   const [username, setUsername] = useState('')
-  const [error, setError] = useState('')
+  const [usernameError, setUsernameError] = useState('')
 
-  // Validation regex
+  const [formError, setFormError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Regex
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  const passwordRegex =
-    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/ // min 8 caractères, au moins 1 maj, 1 min, 1 chiffre, 1 spécial
+  const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/
+  const mediumPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$/
 
-  const validateInputs = () => {
-    if (!emailRegex.test(email)) {
-      setError('Adresse email invalide.')
-      return false
+  // Validation et mise à jour des erreurs en temps réel
+  useEffect(() => {
+    if (email === '') {
+      setEmailError('')
+    } else if (!emailRegex.test(email)) {
+      setEmailError('Adresse email invalide.')
+    } else {
+      setEmailError('')
     }
-    if (!passwordRegex.test(password)) {
-      setError(
+  }, [email])
+
+  useEffect(() => {
+    if (password === '') {
+      setPasswordError('')
+      setPasswordStrength('')
+    } else if (strongPasswordRegex.test(password)) {
+      setPasswordError('')
+      setPasswordStrength('fort')
+    } else if (mediumPasswordRegex.test(password)) {
+      setPasswordError(
+        'Le mot de passe est moyen, ajoutez un caractère spécial pour plus de sécurité.'
+      )
+      setPasswordStrength('moyen')
+    } else {
+      setPasswordError(
         'Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial.'
       )
-      return false
+      setPasswordStrength('faible')
     }
-    if (password !== confirmPassword) {
-      setError('Les mots de passe ne correspondent pas.')
-      return false
+  }, [password])
+
+  useEffect(() => {
+    if (confirmPassword === '') {
+      setConfirmPasswordError('')
+    } else if (confirmPassword !== password) {
+      setConfirmPasswordError('Les mots de passe ne correspondent pas.')
+    } else {
+      setConfirmPasswordError('')
     }
-    if (!fullName.trim()) {
-      setError('Le nom complet est requis.')
-      return false
+  }, [confirmPassword, password])
+
+  useEffect(() => {
+    if (fullName === '') {
+      setFullNameError('')
+    } else if (!fullName.trim()) {
+      setFullNameError('Le nom complet est requis.')
+    } else {
+      setFullNameError('')
     }
-    if (!username.trim()) {
-      setError("Le nom d'utilisateur est requis.")
-      return false
+  }, [fullName])
+
+  useEffect(() => {
+    if (username === '') {
+      setUsernameError('')
+    } else if (!username.trim()) {
+      setUsernameError("Le nom d'utilisateur est requis.")
+    } else {
+      setUsernameError('')
     }
-    setError('')
-    return true
-  }
+  }, [username])
+
+  const isFormValid =
+    email &&
+    !emailError &&
+    password &&
+    !passwordError &&
+    confirmPassword &&
+    !confirmPasswordError &&
+    fullName &&
+    !fullNameError &&
+    username &&
+    !usernameError
 
   const handleRegister = async () => {
-    if (!validateInputs()) return
+    if (!isFormValid) {
+      setFormError('Veuillez corriger les erreurs dans le formulaire.')
+      return
+    }
+    setFormError('')
+    setIsSubmitting(true)
 
     try {
-      // Étape 1: Créer un compte avec Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, email, password)
-
-      // Étape 2: Récupérer un token Firebase
       const token = await userCredential.user.getIdToken()
 
-      // Étape 3: Appeler le backend pour enregistrer l'utilisateur dans Firestore
       const res = await fetch('http://localhost:3000/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -70,7 +129,6 @@ const RegisterForm = () => {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
 
-      // Étape 4: Envoyer audit "Création de compte"
       const userId = userCredential.user.uid
       try {
         await fetch('http://localhost:3000/api/audit', {
@@ -92,11 +150,12 @@ const RegisterForm = () => {
         console.warn('Erreur audit création compte:', auditError)
       }
 
-      // Étape 5: Rediriger ou afficher un message de succès
-      navigate('/chat') // ou /login ou /dashboard
+      navigate('/chat')
     } catch (err) {
       console.error(err)
-      setError('Échec de la création du compte : ' + err.message)
+      setFormError('Échec de la création du compte : ' + err.message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -115,40 +174,72 @@ const RegisterForm = () => {
       <main className="form-wrapper">
         <div className="login-box">
           <h2>Create your account</h2>
+
           <input
             type="email"
             placeholder="Email address"
             value={email}
             onChange={e => setEmail(e.target.value)}
           />
+          {emailError && <p className="text-red-500">{emailError}</p>}
+
           <input
             type="password"
             placeholder="Password"
             value={password}
             onChange={e => setPassword(e.target.value)}
           />
+          {passwordError && <p className="text-red-500">{passwordError}</p>}
+          {passwordStrength && !passwordError && (
+            <p
+              style={{
+                color:
+                  passwordStrength === 'fort'
+                    ? 'green'
+                    : passwordStrength === 'moyen'
+                    ? 'orange'
+                    : 'red',
+              }}
+            >
+              Force du mot de passe : {passwordStrength}
+            </p>
+          )}
+
           <input
             type="password"
             placeholder="Confirm Password"
             value={confirmPassword}
             onChange={e => setConfirmPassword(e.target.value)}
           />
+          {confirmPasswordError && <p className="text-red-500">{confirmPasswordError}</p>}
+
           <input
             type="text"
             placeholder="Full name"
             value={fullName}
             onChange={e => setFullName(e.target.value)}
           />
+          {fullNameError && <p className="text-red-500">{fullNameError}</p>}
+
           <input
             type="text"
             placeholder="Username"
             value={username}
             onChange={e => setUsername(e.target.value)}
           />
-          <button className="submit-btn" onClick={handleRegister}>
-            Create account
+          {usernameError && <p className="text-red-500">{usernameError}</p>}
+
+          <button
+            className="submit-btn"
+            onClick={handleRegister}
+            disabled={!isFormValid || isSubmitting}
+            style={{ opacity: !isFormValid || isSubmitting ? 0.5 : 1 }}
+          >
+            {isSubmitting ? 'Création...' : 'Create account'}
           </button>
-          {error && <p className="text-red-500 mt-2">{error}</p>}
+
+          {formError && <p className="text-red-500 mt-2">{formError}</p>}
+
           <p className="signup-link">
             By signing up, you agree to our <a href="#">Terms</a>, <a href="#">Privacy Policy</a> and{' '}
             <a href="#">Cookie Use</a>.

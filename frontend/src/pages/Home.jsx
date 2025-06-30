@@ -1,10 +1,14 @@
-import React from 'react';
-import styles from '../styles/HomeStyle.module.css';
+import React from 'react'
+import { useNavigate } from 'react-router-dom'
+import styles from '../styles/HomeStyle.module.css'
+
 const Home = () => {
+  const navigate = useNavigate()
+
   return (
     <div className={styles.container}>
       <header className={styles.header}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div className={styles.logoWrapper}>
           <div className={styles.logo}>
             <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path
@@ -13,23 +17,30 @@ const Home = () => {
               />
             </svg>
           </div>
-          <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', margin: 0 }}>SafeX</h2>
+          <h2 className={styles.title}>SafeX</h2>
         </div>
+
         <nav className={styles.nav}>
-          <a className={styles.navLink} href="#">Download</a>
-          <a className={styles.navLink} href="#">Features</a>
-          <a className={styles.navLink} href="#">Pricing</a>
-          <a className={styles.navLink} href="#">Support</a>
+          <a className={styles.navLink} href="#">
+            Download
+          </a>
+          <a className={styles.navLink} href="#">
+            Features
+          </a>
+          <a className={styles.navLink} href="#">
+            Pricing
+          </a>
+          <a className={styles.navLink} href="#">
+            Support
+          </a>
         </nav>
-       <button 
-    className={styles.button}
-    onClick={() => navigate('/login')}
-  >
-    Connexion
-  </button>
+
+        <button className={styles.loginBtn} onClick={() => navigate('/login')}>
+          Connexion
+        </button>
       </header>
 
-      <main>
+      <main className={styles.main}>
         {/* Hero Section */}
         <section
           className={styles.hero}
@@ -37,13 +48,14 @@ const Home = () => {
             backgroundImage: `url('https://lh3.googleusercontent.com/aida-public/AB6AXuBckRuOLOcgZSI3bTwndARuDGlgTdkq5Xx1Qlr4fegnOQRdZ3uJCoeSVGTiycM8xvGOczVE7eo6CeZ9EKEKTFdS1zDaBdwsO0iPnQgmkosNp7iTqyzGE-VkFckwuGBluRlxXqinrwLC6xNKj8F9ZkVXkQL1-hz4ePfwN_Kt1zJU5NCs7OlHSoyUaW3dWe4uzC_BMxTi9Tz6XsaBbpO5epGhEhPCUo5LSyqTwIX57-sU2AWRZUXa2tJ4lhnAXA70H4bFqhQxwXAH0t-L')`,
           }}
         >
-          <h1>Your conversations, protected.</h1>
-          <p>
-            SafeX est une plateforme de messagerie ultra sécurisée, intégrant le chiffrement quantique et un audit complet des activités pour garantir la confidentialité totale.
+          <h1 className={styles.heroTitle}>Your conversations, protected.</h1>
+          <p className={styles.heroSubtitle}>
+            SafeX est une plateforme de messagerie ultra sécurisée, intégrant le chiffrement quantique et un
+            audit complet des activités pour garantir la confidentialité totale.
           </p>
-          <a href="/login" className={styles.button}>
+          <button className={styles.heroBtn} onClick={() => navigate('/login')}>
             Accéder à la plateforme
-          </a>
+          </button>
         </section>
 
         {/* Features Section */}
@@ -68,24 +80,17 @@ const Home = () => {
           <p>
             Rejoignez SafeX et échangez sans crainte. Notre priorité est votre vie privée, aujourd'hui et demain.
           </p>
-          <a href="/login" className={styles.button}>
+          <button className={styles.ctaBtn} onClick={() => navigate('/register')}>
             Créer un compte
-          </a>
+          </button>
         </section>
       </main>
 
-      <footer style={{ 
-        textAlign: 'center', 
-        fontSize: '0.875rem', 
-        color: '#94a3b8', 
-        padding: '2rem 0',
-        width: '100%',
-        boxSizing: 'border-box'
-      }}>
+      <footer className={styles.footer}>
         © {new Date().getFullYear()} SafeX. All rights reserved.
       </footer>
     </div>
-  );
-};
+  )
+}
 
-export default Home;
+export default Home
