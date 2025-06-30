@@ -28,14 +28,36 @@ const RegisterForm = () => {
         body: JSON.stringify({
           token,
           name: fullName,
-          username
-        })
+          username,
+        }),
       })
 
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
 
-      // Étape 4: Rediriger ou afficher un message de succès
+      // Étape 4: Envoyer audit "Création de compte"
+      const userId = userCredential.user.uid
+      try {
+        await fetch('http://localhost:3000/api/audit', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            userId,
+            action: 'Création de compte',
+            details: {
+              localTime: new Date().toLocaleString(),
+              browser: navigator.userAgent,
+            },
+          }),
+        })
+      } catch (auditError) {
+        console.warn('Erreur audit création compte:', auditError)
+      }
+
+      // Étape 5: Rediriger ou afficher un message de succès
       navigate('/chat') // ou /login ou /dashboard
 
     } catch (err) {

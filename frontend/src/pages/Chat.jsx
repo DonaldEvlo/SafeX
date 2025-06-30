@@ -1,9 +1,10 @@
 import React from 'react';
-import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
+import { getAuth, onAuthStateChanged,  } from 'firebase/auth';
 import {
   addDoc,
   collection,
   doc,
+  getDoc,
   getDocs,
   limit,
   onSnapshot,
@@ -16,7 +17,7 @@ import {
 } from 'firebase/firestore';
 import { getDownloadURL, getStorage, ref, uploadBytes } from 'firebase/storage';
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { db, storage } from '../services/firebase';
 import { decryptMessage, encryptMessage } from '../utils/encryption';
 
@@ -61,8 +62,9 @@ function getLastMessagePreview(msg) {
 }
 
 const Chat = () => {
-  const auth = getAuth();
+ const auth = getAuth();
   const navigate = useNavigate();
+  const { id: conversationIdFromUrl } = useParams();
 
   const [currentUser, setCurrentUser] = useState(null);
   const [contacts, setContacts] = useState([]);
@@ -82,6 +84,8 @@ const Chat = () => {
   const streamRef = useRef(null);
   const pressTimer = useRef(null);
   const pressStart = useRef(null);
+  const [searchTerm, setSearchTerm] = useState('');
+
 
   const startAudioRecording = async () => {
     try {
@@ -121,6 +125,10 @@ const Chat = () => {
       }
     }
   };
+
+  const filteredContacts = contacts.filter(contact =>
+  contact.name.toLowerCase().includes(searchTerm.toLowerCase())
+);
 
   // Écoute de l'état d'authentification
   useEffect(() => {
@@ -174,22 +182,53 @@ const Chat = () => {
   useEffect(() => {
     if (!currentUser) return;
 
-    const fetchUsers = async () => {
+    const fetchConversationsAndContacts = async () => {
       try {
-        const usersCol = collection(db, 'users');
-        const q = query(usersCol, where('uid', '!=', currentUser.uid));
+        const conversationsCol = collection(db, 'conversations');
+        const q = query(conversationsCol, where('participants', 'array-contains', currentUser.uid));
         const querySnapshot = await getDocs(q);
-        const usersList = querySnapshot.docs.map(doc => doc.data());
-        console.log('[Contacts] Contacts récupérés:', usersList);
-        setContacts(usersList);
+
+        const conversationsData = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+
+        // Get other participants UIDs (contacts)
+        const contactsUids = conversationsData.map(conv => conv.participants.find(uid => uid !== currentUser.uid));
+
+        // Load contacts data
+        const contactsPromises = contactsUids.map(async (uid) => {
+          const userDoc = await getDoc(doc(db, 'users', uid));
+          return userDoc.exists() ? userDoc.data() : null;
+        });
+
+        const contactsList = (await Promise.all(contactsPromises)).filter(Boolean);
+
+        setContacts(contactsList);
+
+        // Optionally, fetch last messages for each conversation
+        const lastMsgsTemp = {};
+        conversationsData.forEach(conv => {
+          const messagesRef = collection(db, 'conversations', conv.id, 'messages');
+          const lastMsgQuery = query(messagesRef, orderBy('timestamp', 'desc'), limit(1));
+
+          onSnapshot(lastMsgQuery, (snapshot) => {
+            if (!snapshot.empty) {
+              lastMsgsTemp[conv.id] = snapshot.docs[0].data();
+              setLastMessages(prev => ({ ...prev, [conv.id]: lastMsgsTemp[conv.id] }));
+            } else {
+              setLastMessages(prev => ({ ...prev, [conv.id]: null }));
+            }
+          });
+        });
+
       } catch (error) {
-        console.error('[Contacts] Erreur chargement contacts:', error);
+        console.error('[Conversations] Error loading:', error);
       }
     };
 
-    fetchUsers();
+    fetchConversationsAndContacts();
   }, [currentUser]);
-
   // Récupérer les derniers messages pour chaque contact
   useEffect(() => {
     if (!currentUser || !contacts.length) return;
@@ -304,6 +343,22 @@ const Chat = () => {
     }
   };
 
+   useEffect(() => {
+    if (!currentUser || !contacts.length || !conversationIdFromUrl) return;
+
+    const parts = conversationIdFromUrl.split('_');
+    if (parts.length !== 2) return;
+
+    const [uid1, uid2] = parts;
+    if (![uid1, uid2].includes(currentUser.uid)) return;
+
+    const otherUid = uid1 === currentUser.uid ? uid2 : uid1;
+    const foundContact = contacts.find(c => c.uid === otherUid);
+    if (foundContact) {
+      setSelectedContact(foundContact);
+    }
+  }, [conversationIdFromUrl, currentUser, contacts]);
+
   // Gestion de la conversation sélectionnée avec marquage de lecture
   useEffect(() => {
     if (!selectedContact || !currentUser) return;
@@ -385,41 +440,7 @@ const Chat = () => {
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      const token = await currentUser.getIdToken();
-
-      await fetch('http://localhost:3000/api/auth/logout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ token })
-      });
-
-      await fetch('http://localhost:3000/api/audit', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          userId: currentUser.uid,
-          action: 'Déconnexion',
-          details: {
-            browser: navigator.userAgent,
-            localTime: new Date().toLocaleString()
-          }
-        })
-      });
-
-      await signOut(auth);
-      navigate('/login');
-    } catch (error) {
-      console.error('[Chat] Erreur déconnexion:', error);
-    }
-  };
+  
 
   const handleSendAudio = async () => {
     if (!audioBlob || !selectedContact || !currentUser) return;
@@ -578,25 +599,43 @@ const Chat = () => {
   return (
     <div style={{ display: 'flex', height: '100vh', backgroundColor: '#1a1a1a', color: '#fff' }}>
       <div style={{ width: 250, backgroundColor: '#2a2a2a', borderRight: '1px solid #3a3a3a' }}>
+
         <div style={{ padding: 16, borderBottom: '1px solid #3a3a3a' }}>
+  {/* Boutons de navigation */}
+  <div style={{ display: 'flex', marginBottom: 12, gap: 8 }}>
+    <button onClick={() => navigate('/contacts')}>Contacts</button>
+    <button onClick={() => navigate('/profile')}>Profile</button>
+  </div>
+  
+</div>
+        <div style={{ padding: 16, borderBottom: '1px solid #3a3a3a' }}>
+
+          
           <input
             type="text"
             placeholder="Rechercher..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
             style={{
               width: '100%',
               padding: 8,
               borderRadius: 8,
               backgroundColor: '#3a3a3a',
               border: 'none',
-              color: '#fff'
+              color: '#fff',
+              outline: 'none'
             }}
           />
         </div>
         <div style={{ overflowY: 'auto' }}>
-          {contacts.map(contact => (
+          {filteredContacts.map(contact => (
             <div
               key={contact.uid}
-              onClick={() => setSelectedContact(contact)}
+              onClick={() => {
+  setSelectedContact(contact);
+  const conversationId = generateConversationId(currentUser.uid, contact.uid);
+  navigate(`/chat/${conversationId}`);
+}}
               style={{
                 padding: 12,
                 borderBottom: '1px solid #353535',
@@ -653,7 +692,6 @@ const Chat = () => {
                 : formatLastSeen(selectedContactStatus.lastSeen)}
             </div>
           )}
-          <button onClick={handleLogout} style={{ float: 'right' }}>Déconnexion</button>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>

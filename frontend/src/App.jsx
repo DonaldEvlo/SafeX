@@ -7,6 +7,7 @@ import RegisterForm from "./components/Auth/RegisterForm";
 import Profile from "./pages/Profile";
 import Verify2FA from './pages/Verify2FA'
 import AdminLogs from './pages/AdminLogs';
+import CheckContacts from './pages/CheckContacts'
 // import Navbar from "./components/Shared/Navbar";
 // import { useAuth } from "./utils/auth";
 
@@ -33,6 +34,8 @@ export default function App() {
           <Route path="/profile" element={<Profile/>} />
           <Route path="/verify-2fa" element={<Verify2FA />} />
           <Route path="/admin-log" element={<AdminLogs />} />
+          <Route path="/contacts" element={<CheckContacts />} />  
+           <Route path="/chat/:id" element={<Chat />} />
 
           {/* <Route
             path="/admin/logs"

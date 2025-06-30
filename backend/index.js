@@ -1,6 +1,7 @@
 const express = require('express')
 const cors = require('cors')
 const app = express()
+const contactsRoute = require('./routes/contacts')
 
 // Middlewares
 app.use(cors())
@@ -20,7 +21,10 @@ app.use('/api/messages', require('./routes/messages'));
 app.use('/api/audit', auditRoutes);
 app.use('/api/users', require('./routes/users'))
 
+app.use('/api/contacts', contactsRoute)
 
+const chatsRoutes = require('./routes/chats')
+app.use('/api/chats', chatsRoutes)
 // Port
 const PORT = process.env.PORT || 3000
 app.listen(PORT, () => {

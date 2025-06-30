@@ -1,6 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const admin = require('../services/firebaseAdmin')
+const auth = require('../middleware/authMiddleware')
 
 // 🔹 GET /api/users — liste tous les utilisateurs
 router.get('/', async (req, res) => {
@@ -31,6 +32,28 @@ router.get('/', async (req, res) => {
     res.status(500).json({ error: 'Erreur serveur' })
   }
 })
+
+router.put('/profile', auth, async (req, res) => {
+  const { username, profileUrl } = req.body;
+  const uid = req.user.uid; // récupéré depuis verifyToken
+
+  if (!username || typeof username !== 'string' || username.trim() === '') {
+    return res.status(400).json({ error: 'Username est requis et doit être une chaîne non vide' });
+  }
+
+  try {
+    const userRef = admin.firestore().collection('users').doc(uid);
+    await userRef.update({
+      username: username.trim(),
+      profileUrl: profileUrl || null,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    return res.json({ message: 'Profil mis à jour avec succès' });
+  } catch (error) {
+    console.error('Erreur mise à jour profil:', error); 
+    return res.status(500).json({ error: 'Erreur serveur lors de la mise à jour' });
+  }
+});
 
 
 // 🔹 DELETE /api/users/:uid — supprimer un utilisateur
@@ -96,5 +119,40 @@ router.post('/:uid/signout', async (req, res) => {
     res.status(500).json({ error: 'Erreur déconnexion utilisateur' })
   }
 })
+
+//trouver un utilisateur par email
+router.get('/find', auth, async (req, res) => {
+  const { email } = req.query
+  if (!email) return res.status(400).json({ error: 'Email requis' })
+
+  try {
+    // Référence à la collection users
+    const usersRef = admin.firestore().collection('users')
+
+    // Requête pour chercher l'utilisateur avec l'email donné
+    const querySnapshot = await usersRef.where('email', '==', email).get()
+
+    if (querySnapshot.empty) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' })
+    }
+
+    const userDoc = querySnapshot.docs[0]
+    const userData = userDoc.data()
+    const userPublic = {
+      uid: userDoc.id,
+      email: userData.email,
+      name: userData.name,
+      username: userData.username,
+      profileUrl: userData.profileUrl
+    }
+    res.json(userPublic)
+  } catch (err) {
+    console.error('Erreur recherche utilisateur:', err)
+    res.status(500).json({ error: 'Erreur serveur' })
+  }
+})
+
+
+
 
 module.exports = router

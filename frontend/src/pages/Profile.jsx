@@ -1,8 +1,7 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
-import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db, storage } from '../services/firebase';
 
@@ -23,6 +22,7 @@ const Profile = () => {
         navigate('/login');
         return;
       }
+
       const userRef = doc(db, 'users', currentUser.uid);
       const userSnap = await getDoc(userRef);
       if (userSnap.exists()) {
@@ -37,8 +37,41 @@ const Profile = () => {
   }, [navigate]);
 
   const handleLogout = async () => {
-    await signOut(getAuth());
-    navigate('/login');
+    const auth = getAuth();
+    const currentUser = auth.currentUser;
+    try {
+      const token = await currentUser.getIdToken();
+
+      await fetch('http://localhost:3000/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ token }),
+      });
+
+      await fetch('http://localhost:3000/api/audit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          userId: currentUser.uid,
+          action: 'Déconnexion',
+          details: {
+            browser: navigator.userAgent,
+            localTime: new Date().toLocaleString(),
+          },
+        }),
+      });
+
+      await signOut(auth);
+      navigate('/login');
+    } catch (error) {
+      console.error('[Logout] Erreur déconnexion:', error);
+    }
   };
 
   const handleProfilePicChange = async (e) => {
@@ -46,45 +79,88 @@ const Profile = () => {
     if (!file) return;
     setSaving(true);
     setError('');
+
     try {
       const auth = getAuth();
-      const uid = auth.currentUser.uid;
+      const currentUser = auth.currentUser;
+      const uid = currentUser.uid;
+
       const storageRef = ref(storage, `profilePics/${uid}`);
       await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
-      setEditProfileUrl(url);
-      setUser((prev) => ({ ...prev, profileUrl: url }));
+
+      const downloadUrl = await getDownloadURL(storageRef);
+
+      const userRef = doc(db, 'users', uid);
+      await updateDoc(userRef, {
+        profileUrl: downloadUrl,
+        updatedAt: new Date(),
+      });
+
+      setEditProfileUrl(downloadUrl);
+      setUser((prev) => ({ ...prev, profileUrl: downloadUrl }));
     } catch (err) {
+      console.error('Erreur lors de l\'upload de la photo :', err);
       setError("Erreur lors de l'upload de la photo.");
     }
+
     setSaving(false);
   };
 
-  const handleSave = async () => {
-    if (!editUsername.trim()) {
-      setError('Le username ne peut pas être vide.');
-      return;
-    }
-    setSaving(true);
-    setError('');
-    try {
-      const auth = getAuth();
-      const uid = auth.currentUser.uid;
-      const userRef = doc(db, 'users', uid);
-      await updateDoc(userRef, {
-        username: editUsername,
-        profileUrl: editProfileUrl
-      });
-      setUser((prev) => ({
-        ...prev,
-        username: editUsername,
-        profileUrl: editProfileUrl
-      }));
-    } catch (err) {
-      setError("Erreur lors de la sauvegarde.");
-    }
-    setSaving(false);
-  };
+ const handleSave = async () => {
+  if (!editUsername.trim()) {
+    setError('Le username ne peut pas être vide.');
+    return;
+  }
+  setSaving(true);
+  setError('');
+
+  try {
+    const auth = getAuth();
+    const currentUser = auth.currentUser;
+    const uid = currentUser.uid;
+    const token = await currentUser.getIdToken();
+
+    // Mise à jour dans Firestore
+    const userRef = doc(db, 'users', uid);
+    await updateDoc(userRef, {
+      username: editUsername.trim(),
+      profileUrl: editProfileUrl || null,
+      updatedAt: new Date(),
+    });
+
+    setUser((prev) => ({
+      ...prev,
+      username: editUsername.trim(),
+      profileUrl: editProfileUrl || null,
+    }));
+
+    // Appel à ton API audit pour logger la mise à jour du profil
+    await fetch('http://localhost:3000/api/audit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        userId: uid,
+        action: 'Mise à jour profil',
+        details: {
+          browser: navigator.userAgent,
+          localTime: new Date().toLocaleString(),
+        }
+      })
+    });
+
+    console.log('✅ Profil mis à jour et log audit envoyé.');
+
+  } catch (err) {
+    console.error("Erreur sauvegarde : ", err);
+    setError("Erreur lors de la sauvegarde.");
+  }
+
+  setSaving(false);
+};
+
 
   if (loading) {
     return <div style={{ color: '#fff', textAlign: 'center', marginTop: 50 }}>Chargement du profil...</div>;
@@ -139,7 +215,7 @@ const Profile = () => {
               title="Changer la photo"
               type="button"
             >
-              <span role="img" aria-label="edit">✏️</span>
+              ✏️
             </button>
             <input
               type="file"
