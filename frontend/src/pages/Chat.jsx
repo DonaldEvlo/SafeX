@@ -15,7 +15,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { getDownloadURL, getStorage, ref, uploadBytes } from 'firebase/storage';
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { db, storage } from '../services/firebase';
 import { decryptMessage, encryptMessage } from '../utils/encryption';
