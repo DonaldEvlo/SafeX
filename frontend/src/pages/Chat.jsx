@@ -15,7 +15,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { getDownloadURL, getStorage, ref, uploadBytes } from 'firebase/storage';
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { db, storage } from '../services/firebase';
 import { decryptMessage, encryptMessage } from '../utils/encryption';
@@ -1194,11 +1194,14 @@ const Chat = () => {
             stopAudioRecording(true);
           }
         }}
-        onMouseLeave={() => {
+        onMouseLeave={(e) => {
           clearTimeout(pressTimer.current);
           if (recording) {
             stopAudioRecording(true);
           }
+        }}
+        onMouseEnter={(e) => {
+          if (!recording) e.target.style.transform = 'scale(1.05)';
         }}
         style={{
           background: recording 
@@ -1217,16 +1220,6 @@ const Chat = () => {
           transition: 'all 0.2s ease',
           boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
           animation: recording ? 'pulse 1s infinite' : 'none'
-        }}
-        onMouseEnter={(e) => {
-          if (!recording) e.target.style.transform = 'scale(1.05)';
-        }}
-        onMouseLeave={(e) => {
-          clearTimeout(pressTimer.current);
-          if (recording) {
-            stopAudioRecording(true);
-          }
-          if (!recording) e.target.style.transform = 'scale(1)';
         }}
         title={recording ? "Relâche pour arrêter" : "Maintenir pour enregistrer"}
         type="button"
