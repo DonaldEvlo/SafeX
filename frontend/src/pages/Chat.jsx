@@ -1,5 +1,4 @@
-import React from 'react';
-import { getAuth, onAuthStateChanged,  } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, } from 'firebase/auth';
 import {
   addDoc,
   collection,
@@ -16,13 +15,51 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { getDownloadURL, getStorage, ref, uploadBytes } from 'firebase/storage';
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { db, storage } from '../services/firebase';
 import { decryptMessage, encryptMessage } from '../utils/encryption';
 
+
 function generateConversationId(uid1, uid2) {
   return uid1 < uid2 ? `${uid1}_${uid2}` : `${uid2}_${uid1}`;
+}
+
+function formatMessageTime(timestamp) {
+  if (!timestamp) return '';
+  
+  const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+  const now = new Date();
+  const diffInDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+  
+  if (diffInDays === 0) {
+    // Aujourd'hui - afficher seulement l'heure
+    return date.toLocaleTimeString('fr-FR', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+  } else if (diffInDays === 1) {
+    // Hier
+    return `Hier ${date.toLocaleTimeString('fr-FR', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    })}`;
+  } else if (diffInDays < 7) {
+    // Cette semaine
+    return date.toLocaleDateString('fr-FR', { 
+      weekday: 'short',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } else {
+    // Plus ancien
+    return date.toLocaleDateString('fr-FR', { 
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
 }
 
 function formatLastSeen(lastSeen) {
@@ -61,6 +98,36 @@ function getLastMessagePreview(msg) {
   }
 }
 
+function formatLastMessageTime(timestamp) {
+  if (!timestamp) return '';
+  
+  const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+  const now = new Date();
+  const diffInDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+  const diffInHours = Math.floor((now - date) / (1000 * 60 * 60));
+  const diffInMinutes = Math.floor((now - date) / (1000 * 60));
+  
+  if (diffInMinutes < 1) {
+    return 'maintenant';
+  } else if (diffInMinutes < 60) {
+    return `${diffInMinutes}m`;
+  } else if (diffInHours < 24 && now.getDate() === date.getDate()) {
+    return date.toLocaleTimeString('fr-FR', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+  } else if (diffInDays === 1) {
+    return 'hier';
+  } else if (diffInDays < 7) {
+    return date.toLocaleDateString('fr-FR', { weekday: 'short' });
+  } else {
+    return date.toLocaleDateString('fr-FR', { 
+      day: '2-digit',
+      month: '2-digit'
+    });
+  }
+}
+
 const Chat = () => {
  const auth = getAuth();
   const navigate = useNavigate();
@@ -85,6 +152,7 @@ const Chat = () => {
   const pressTimer = useRef(null);
   const pressStart = useRef(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [lastMessageTimestamps, setLastMessageTimestamps] = useState({});
 
 
   const startAudioRecording = async () => {
@@ -230,42 +298,46 @@ const Chat = () => {
     fetchConversationsAndContacts();
   }, [currentUser]);
   // Récupérer les derniers messages pour chaque contact
-  useEffect(() => {
-    if (!currentUser || !contacts.length) return;
+ useEffect(() => {
+  if (!currentUser || !contacts.length) return;
 
-    const unsubscribes = [];
-    const lastMsgsTemp = {};
+  const unsubscribes = [];
+  const lastMsgsTemp = {};
+  const timestampsTemp = {}; // AJOUTER CETTE LIGNE
 
-    contacts.forEach(contact => {
-      const conversationId = generateConversationId(currentUser.uid, contact.uid);
-      const messagesRef = collection(db, 'conversations', conversationId, 'messages');
+  contacts.forEach(contact => {
+    const conversationId = generateConversationId(currentUser.uid, contact.uid);
+    const messagesRef = collection(db, 'conversations', conversationId, 'messages');
+    
+    // Récupérer le dernier message de chaque conversation
+    const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(1));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        const lastMessage = snapshot.docs[0].data();
+        lastMsgsTemp[contact.uid] = lastMessage;
+        timestampsTemp[contact.uid] = lastMessage.timestamp; // AJOUTER CETTE LIGNE
+        console.log(`[LastMessage] Dernier message pour ${contact.name}:`, lastMessage);
+      } else {
+        // Aucun message dans cette conversation
+        lastMsgsTemp[contact.uid] = null;
+        timestampsTemp[contact.uid] = null; // AJOUTER CETTE LIGNE
+      }
       
-      // Récupérer le dernier message de chaque conversation
-      const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(1));
-
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        if (!snapshot.empty) {
-          const lastMessage = snapshot.docs[0].data();
-          lastMsgsTemp[contact.uid] = lastMessage;
-          console.log(`[LastMessage] Dernier message pour ${contact.name}:`, lastMessage);
-        } else {
-          // Aucun message dans cette conversation
-          lastMsgsTemp[contact.uid] = null;
-        }
-        
-        // Mettre à jour l'état avec tous les derniers messages
-        setLastMessages({...lastMsgsTemp});
-      }, (error) => {
-        console.error('[LastMessage] Erreur récupération dernier message:', error);
-      });
-
-      unsubscribes.push(unsubscribe);
+      // Mettre à jour l'état avec tous les derniers messages
+      setLastMessages({...lastMsgsTemp});
+      setLastMessageTimestamps({...timestampsTemp}); // AJOUTER CETTE LIGNE
+    }, (error) => {
+      console.error('[LastMessage] Erreur récupération dernier message:', error);
     });
 
-    return () => {
-      unsubscribes.forEach(unsub => unsub());
-    };
-  }, [currentUser, contacts]);
+    unsubscribes.push(unsubscribe);
+  });
+
+  return () => {
+    unsubscribes.forEach(unsub => unsub());
+  };
+}, [currentUser, contacts]);
 
   // Écouter les messages non lus pour tous les contacts
   useEffect(() => {
@@ -597,7 +669,23 @@ const Chat = () => {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', backgroundColor: '#1a1a1a', color: '#fff' }}>
+    <>
+      <style>
+        {`
+          @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.7); }
+            70% { box-shadow: 0 0 0 8px rgba(255, 71, 87, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 71, 87, 0); }
+          }
+          @keyframes bounce {
+            0%, 20%, 53%, 80%, 100% { transform: translateY(0); }
+            40%, 43% { transform: translateY(-8px); }
+            70% { transform: translateY(-4px); }
+            90% { transform: translateY(-2px); }
+          }
+        `}
+      </style>
+    <div style={{ display: 'flex', height: '100vh', minHeight: '100vh', backgroundColor: '#1a1a1a', color: '#fff' }}>
       <div style={{ width: 250, backgroundColor: '#2a2a2a', borderRight: '1px solid #3a3a3a' }}>
 
         <div style={{ padding: 16, borderBottom: '1px solid #3a3a3a' }}>
@@ -628,58 +716,95 @@ const Chat = () => {
           />
         </div>
         <div style={{ overflowY: 'auto' }}>
-          {filteredContacts.map(contact => (
-            <div
-              key={contact.uid}
-              onClick={() => {
-  setSelectedContact(contact);
-  const conversationId = generateConversationId(currentUser.uid, contact.uid);
-  navigate(`/chat/${conversationId}`);
-}}
-              style={{
-                padding: 12,
-                borderBottom: '1px solid #353535',
-                backgroundColor: selectedContact?.uid === contact.uid ? '#404040' : 'transparent',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <img
-                  src={contact.profileUrl || contact.avatar || 'https://randomuser.me/api/portraits/lego/1.jpg'}
-                  alt={contact.name}
-                  style={{ width: 40, height: 40, borderRadius: '50%', marginRight: 8 }}
-                />
-                <div>
-                  <span>{contact.name}</span>
-                  <div style={{ fontSize: 12, color: '#aaa', marginTop: 2, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {getLastMessagePreview(lastMessages[contact.uid])}
-                  </div>
-                </div>
-              </div>
-              
-              {/* Badge de messages non lus */}
-              {unreadCounts[contact.uid] > 0 && (
-                <div style={{
-                  backgroundColor: '#007AFF',
-                  color: 'white',
-                  borderRadius: '50%',
-                  minWidth: 20,
-                  height: 20,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 12,
-                  fontWeight: 'bold'
-                }}>
-                  {unreadCounts[contact.uid]}
-                </div>
-              )}
-            </div>
-          ))}
+  {filteredContacts
+    .sort((a, b) => {
+      // Trier par timestamp du dernier message (plus récent en premier)
+      const timestampA = lastMessageTimestamps[a.uid];
+      const timestampB = lastMessageTimestamps[b.uid];
+      
+      if (!timestampA && !timestampB) return 0;
+      if (!timestampA) return 1;
+      if (!timestampB) return -1;
+      
+      const dateA = timestampA.toDate ? timestampA.toDate() : new Date(timestampA);
+      const dateB = timestampB.toDate ? timestampB.toDate() : new Date(timestampB);
+      
+      return dateB - dateA; // Plus récent en premier
+    })
+    .map(contact => (
+    <div
+      key={contact.uid}
+      onClick={() => {
+        setSelectedContact(contact);
+        const conversationId = generateConversationId(currentUser.uid, contact.uid);
+        navigate(`/chat/${conversationId}`);
+      }}
+      style={{
+        padding: 12,
+        borderBottom: '1px solid #353535',
+        backgroundColor: selectedContact?.uid === contact.uid ? '#404040' : 'transparent',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between'
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
+        <img
+          src={contact.profileUrl || contact.avatar || 'https://randomuser.me/api/portraits/lego/1.jpg'}
+          alt={contact.name}
+          style={{ width: 40, height: 40, borderRadius: '50%', marginRight: 8, flexShrink: 0 }}
+        />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span style={{ fontWeight: unreadCounts[contact.uid] > 0 ? 'bold' : 'normal', fontSize: 14 }}>
+              {contact.name}
+            </span>
+            <span style={{ 
+              fontSize: 11, 
+              color: '#888', 
+              flexShrink: 0,
+              marginLeft: 8
+            }}>
+              {formatLastMessageTime(lastMessageTimestamps[contact.uid])}
+            </span>
+          </div>
+          <div style={{ 
+            fontSize: 12, 
+            color: unreadCounts[contact.uid] > 0 ? '#fff' : '#aaa', 
+            marginTop: 2, 
+            overflow: 'hidden', 
+            textOverflow: 'ellipsis', 
+            whiteSpace: 'nowrap',
+            fontWeight: unreadCounts[contact.uid] > 0 ? '500' : 'normal'
+          }}>
+            {getLastMessagePreview(lastMessages[contact.uid])}
+          </div>
         </div>
+      </div>
+      
+      {/* Badge de messages non lus */}
+      {unreadCounts[contact.uid] > 0 && (
+        <div style={{
+          backgroundColor: '#007AFF',
+          color: 'white',
+          borderRadius: '50%',
+          minWidth: 20,
+          height: 20,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 12,
+          fontWeight: 'bold',
+          marginLeft: 8,
+          flexShrink: 0
+        }}>
+          {unreadCounts[contact.uid]}
+        </div>
+      )}
+    </div>
+  ))}
+</div>
       </div>
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
@@ -694,298 +819,516 @@ const Chat = () => {
           )}
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-          {!selectedContact && (
-            <p style={{ textAlign: 'center', color: '#888' }}>Sélectionne un contact pour discuter</p>
-          )}
-          {messages.map((msg, index) => {
-            const isOwn = msg.senderId === currentUser.uid;
+        <div style={{ 
+  flex: 1, 
+  overflowY: 'auto', 
+  padding: '16px 20px', 
+  width: '100%',
+  minHeight: 0,
+  backgroundColor: '#1a1a1a'
+}}>
+  {!selectedContact && (
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      alignItems: 'center', 
+      justifyContent: 'center', 
+      height: '100%',
+      color: '#888' 
+    }}>
+      <div style={{ fontSize: '48px', marginBottom: '16px' }}>💬</div>
+      <p>Sélectionne un contact pour commencer une conversation</p>
+    </div>
+  )}
+  
+  {messages.map((msg, index) => {
+    const isOwn = msg.senderId === currentUser.uid;
+    const showTime = index === 0 || 
+      (messages[index - 1] && 
+       Math.abs(new Date(msg.timestamp?.toDate ? msg.timestamp.toDate() : msg.timestamp) - 
+                new Date(messages[index - 1].timestamp?.toDate ? messages[index - 1].timestamp.toDate() : messages[index - 1].timestamp)) > 300000); // 5 minutes
 
-            return (
-              <div
-                key={index}
-                style={{
-                  display: 'flex',
-                  justifyContent: isOwn ? 'flex-end' : 'flex-start',
-                  marginBottom: 8
-                }}
-              >
-                <div
-                  style={{
-                    backgroundColor: isOwn ? '#007AFF' : '#3a3a3a',
-                    color: '#fff',
-                    padding: '8px 12px',
-                    borderRadius: 16,
-                    maxWidth: '60%',
-                    position: 'relative'
-                  }}
-                >
-                  {/* Message audio */}
-                  {msg.type === 'audio' && msg.audio && (
-                    <audio controls style={{ maxWidth: '100%' }}>
-                      <source src={msg.audio} type="audio/webm" />
-                      Ton navigateur ne supporte pas l'audio.
-                    </audio>
-                  )}
-
-                  {/* Message image */}
-                  {msg.type === 'image' && msg.imageUrl && (
-                    <img
-                      src={msg.imageUrl}
-                      alt="image"
-                      style={{ maxWidth: '100%', borderRadius: 12, marginTop: 6 }}
-                    />
-                  )}
-
-                  {/* Fichier */}
-                  {msg.type === 'file' && msg.file && (
-                    <div>
-                      <a href={msg.file} target="_blank" rel="noopener noreferrer" style={{ color: 'white' }}>
-                        📎 {msg.fileName || 'Fichier'}
-                      </a>
-                    </div>
-                  )}
-
-                  {/* Message texte */}
-                  {!msg.type || msg.type === 'text' ? (
-                    <div>
-                      {(() => {
-                        try {
-                          return decryptMessage(msg.text);
-                        } catch {
-                          return '[Message illisible]';
-                        }
-                      })()}
-                      
-                      {/* Statut de lecture pour nos messages */}
-                      {isOwn && (
-                        <div style={{
-                          fontSize: 10,
-                          color: (msg.readBy || []).includes(selectedContact?.uid) ? '#4FC3F7' : '#888',
-                          textAlign: 'right',
-                          marginTop: 4
-                        }}>
-                          {getReadStatus(msg)}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    /* Statut pour les autres types de messages */
-                    isOwn && (
-                      <div style={{
-                        fontSize: 10,
-                        color: (msg.readBy || []).includes(selectedContact?.uid) ? '#4FC3F7' : '#888',
-                        textAlign: 'right',
-                        marginTop: 4
-                      }}>
-                        {getReadStatus(msg)}
-                      </div>
-                    )
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {selectedContact && (
-          <div style={{ padding: 16, borderTop: '1px solid #3a3a3a', backgroundColor: '#2a2a2a', display: 'flex', alignItems: 'center', position: 'relative' }}>
-            {/* Bouton + pour ouvrir le menu d'options */}
-            <div style={{ position: 'relative', marginRight: 8 }}>
-              <button
-                onClick={() => setShowAttachMenu(v => !v)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#fff',
-                  fontSize: 24,
-                  cursor: 'pointer',
-                  padding: 4
-                }}
-                title="Joindre"
-                type="button"
-              >
-                +
-              </button>
-              {showAttachMenu && (
-                <div style={{
-                  position: 'absolute',
-                  bottom: 40,
-                  left: 0,
-                  background: '#222',
-                  borderRadius: 8,
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-                  zIndex: 10,
-                  padding: 8,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 8
-                }}>
-                  {/* Image */}
-                  <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span role="img" aria-label="image" style={{ fontSize: 20 }}>🖼️</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => {
-                        setImageFile(e.target.files[0]);
-                        setShowAttachMenu(false);
-                      }}
-                      style={{ display: 'none' }}
-                    />
-                    <span style={{ color: '#fff', fontSize: 14 }}>Image</span>
-                  </label>
-                  {/* Fichier */}
-                  <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span role="img" aria-label="fichier" style={{ fontSize: 20 }}>📎</span>
-                    <input
-                      type="file"
-                      onChange={(e) => {
-                        handleSendFile(e);
-                        setShowAttachMenu(false);
-                      }}
-                      style={{ display: 'none' }}
-                      ref={fileInputRef}
-                    />
-                    <span style={{ color: '#fff', fontSize: 14 }}>Fichier</span>
-                  </label>
-                </div>
-              )}
-            </div>
-
-            {/* Champ de texte */}
-            <input
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-              placeholder="Tape ton message..."
-              style={{
-                flex: 1,
-                padding: 8,
-                borderRadius: 20,
-                backgroundColor: '#3a3a3a',
-                border: 'none',
-                color: '#fff'
-              }}
-            />
-
-            {/* Bouton envoyer */}
-            <button
-              onClick={handleSendMessage}
-              style={{
-                marginLeft: 8,
-                padding: '8px 12px',
-                borderRadius: '50%',
-                backgroundColor: '#007AFF',
-                color: '#fff',
-                border: 'none',
-                fontSize: 20,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-              title="Envoyer"
-              type="button"
-            >
-              📤
-            </button>
-
-            {/* Bouton micro pour audio */}
-            <button
-              onMouseDown={() => {
-                pressStart.current = Date.now();
-                pressTimer.current = setTimeout(() => {
-                  // Si on maintient >400ms, on démarre l'enregistrement
-                  startAudioRecording();
-                }, 400);
-              }}
-              onMouseUp={() => {
-                clearTimeout(pressTimer.current);
-                const duration = Date.now() - pressStart.current;
-                if (duration < 400) {
-                  // Clic rapide : démarrer l'enregistrement (mode WhatsApp)
-                  startAudioRecording();
-                } else if (recording) {
-                  // Maintien : arrêter et envoyer direct
-                  stopAudioRecording(true);
-                }
-              }}
-              onMouseLeave={() => {
-                clearTimeout(pressTimer.current);
-                if (recording) {
-                  stopAudioRecording(true);
-                }
-              }}
-              style={{
-                marginLeft: 8,
-                padding: '8px 12px',
-                borderRadius: '50%',
-                backgroundColor: recording ? '#FF3B30' : '#34C759',
-                color: '#fff',
-                border: 'none',
-                fontSize: 20,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer'
-              }}
-              title={recording ? "Relâche pour arrêter" : "Maintenir pour enregistrer"}
-              type="button"
-            >
-              🎤
-            </button>
-
-            {/* Si un audio est prêt à être envoyé */}
-            {audioBlob && (
-              <button
-                onClick={handleSendAudio}
-                style={{
-                  marginLeft: 8,
-                  padding: '8px 12px',
-                  borderRadius: '50%',
-                  backgroundColor: '#FFA500',
-                  color: '#fff',
-                  border: 'none',
-                  fontSize: 20,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer'
-                }}
-                title="Envoyer l'audio"
-                type="button"
-              >
-                🔊
-              </button>
-            )}
-
-            {/* Bouton envoyer image si une image est sélectionnée */}
-            {imageFile && (
-              <button
-                onClick={handleSendImage}
-                style={{
-                  marginLeft: 8,
-                  padding: '8px 12px',
-                  borderRadius: '50%',
-                  backgroundColor: '#28a745',
-                  color: '#fff',
-                  border: 'none',
-                  fontSize: 20,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer'
-                }}
-                title="Envoyer l'image"
-                type="button"
-              >
-                🖼️
-              </button>
-            )}
+    return (
+      <div key={index}>
+        {/* Séparateur de temps si nécessaire */}
+        {showTime && (
+          <div style={{
+            textAlign: 'center',
+            margin: '20px 0 10px',
+            color: '#666',
+            fontSize: '12px'
+          }}>
+            {formatMessageTime(msg.timestamp)}
           </div>
         )}
+        
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: isOwn ? 'flex-end' : 'flex-start',
+            marginBottom: '8px',
+            alignItems: 'flex-end'
+          }}
+        >
+          {/* Avatar pour les messages reçus */}
+          {!isOwn && (
+            <img
+              src={selectedContact?.profileUrl || selectedContact?.avatar || 'https://randomuser.me/api/portraits/lego/1.jpg'}
+              alt={selectedContact?.name}
+              style={{ 
+                width: '28px', 
+                height: '28px', 
+                borderRadius: '50%', 
+                marginRight: '8px',
+                marginBottom: '2px'
+              }}
+            />
+          )}
+
+          <div
+            style={{
+              backgroundColor: isOwn ? '#007AFF' : '#2d2d2d',
+              color: '#fff',
+              padding: '10px 14px',
+              borderRadius: isOwn ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+              position: 'relative',
+              maxWidth: '70%',
+              minWidth: 'min-content',
+              wordWrap: 'break-word',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+            }}
+          >
+            {/* Message audio */}
+            {msg.type === 'audio' && msg.audio && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ fontSize: '20px' }}>🎵</div>
+                <audio controls style={{ 
+                  maxWidth: '200px',
+                  height: '32px'
+                }}>
+                  <source src={msg.audio} type="audio/webm" />
+                  Ton navigateur ne supporte pas l'audio.
+                </audio>
+              </div>
+            )}
+
+            {/* Message image */}
+            {msg.type === 'image' && msg.imageUrl && (
+              <div>
+                <img
+                  src={msg.imageUrl}
+                  alt="image"
+                  style={{ 
+                    maxWidth: '100%', 
+                    maxHeight: '300px',
+                    borderRadius: '12px', 
+                    display: 'block'
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Fichier */}
+            {msg.type === 'file' && msg.file && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px',
+                backgroundColor: 'rgba(255,255,255,0.1)',
+                borderRadius: '8px'
+              }}>
+                <div style={{ fontSize: '24px' }}>📄</div>
+                <div>
+                  <a 
+                    href={msg.file} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    style={{ 
+                      color: 'white', 
+                      textDecoration: 'none',
+                      fontWeight: '500'
+                    }}
+                  >
+                    {msg.fileName || 'Fichier'}
+                  </a>
+                  <div style={{ fontSize: '11px', opacity: 0.7 }}>
+                    Cliquer pour ouvrir
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Message texte */}
+            {(!msg.type || msg.type === 'text') && (
+              <div>
+                {(() => {
+                  try {
+                    return decryptMessage(msg.text);
+                  } catch {
+                    return '[Message illisible]';
+                  }
+                })()}
+              </div>
+            )}
+
+            {/* Heure et statut de lecture */}
+            <div style={{
+              fontSize: '10px',
+              color: 'rgba(255,255,255,0.6)',
+              marginTop: '4px',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              alignItems: 'center',
+              gap: '4px'
+            }}>
+              <span>
+                {msg.timestamp ? 
+                  new Date(msg.timestamp.toDate ? msg.timestamp.toDate() : msg.timestamp)
+                    .toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+                  : ''}
+              </span>
+              {isOwn && (
+                <span style={{
+                  color: (msg.readBy || []).includes(selectedContact?.uid) ? '#4FC3F7' : 'rgba(255,255,255,0.4)'
+                }}>
+                  {getReadStatus(msg)}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  })}
+</div>
+
+       {selectedContact && (
+  <div style={{ 
+    padding: '16px 20px', 
+    borderTop: '1px solid #3a3a3a', 
+    backgroundColor: '#2a2a2a', 
+    display: 'flex', 
+    alignItems: 'flex-end', 
+    gap: '12px',
+    width: '100%',
+    minWidth: 0
+  }}>
+    {/* Menu d'attachement amélioré */}
+    <div style={{ position: 'relative' }}>
+      <button
+        onClick={() => setShowAttachMenu(v => !v)}
+        style={{
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          border: 'none',
+          color: '#fff',
+          width: '40px',
+          height: '40px',
+          borderRadius: '50%',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '18px',
+          transition: 'all 0.2s ease',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+        }}
+        onMouseEnter={(e) => {
+          e.target.style.transform = 'scale(1.05)';
+        }}
+        onMouseLeave={(e) => {
+          e.target.style.transform = 'scale(1)';
+        }}
+        title="Joindre un fichier"
+        type="button"
+      >
+        +
+      </button>
+      
+      {showAttachMenu && (
+        <div style={{
+          position: 'absolute',
+          bottom: '50px',
+          left: '0',
+          background: 'linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%)',
+          borderRadius: '12px',
+          border: '1px solid #404040',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+          zIndex: 10,
+          padding: '8px',
+          minWidth: '160px'
+        }}>
+          {/* Option Image */}
+          <label style={{ 
+            cursor: 'pointer', 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '12px',
+            padding: '12px',
+            borderRadius: '8px',
+            transition: 'background-color 0.2s ease'
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.backgroundColor = 'rgba(255,255,255,0.1)';
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.backgroundColor = 'transparent';
+          }}>
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #ff6b6b, #ee5a52)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '16px'
+            }}>
+              🖼️
+            </div>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                setImageFile(e.target.files[0]);
+                setShowAttachMenu(false);
+              }}
+              style={{ display: 'none' }}
+            />
+            <span style={{ color: '#fff', fontSize: '14px', fontWeight: '500' }}>Photo</span>
+          </label>
+          
+          {/* Option Fichier */}
+          <label style={{ 
+            cursor: 'pointer', 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '12px',
+            padding: '12px',
+            borderRadius: '8px',
+            transition: 'background-color 0.2s ease'
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.backgroundColor = 'rgba(255,255,255,0.1)';
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.backgroundColor = 'transparent';
+          }}>
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #4ecdc4, #44a08d)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '16px'
+            }}>
+              📎
+            </div>
+            <input
+              type="file"
+              onChange={(e) => {
+                handleSendFile(e);
+                setShowAttachMenu(false);
+              }}
+              style={{ display: 'none' }}
+              ref={fileInputRef}
+            />
+            <span style={{ color: '#fff', fontSize: '14px', fontWeight: '500' }}>Document</span>
+          </label>
+        </div>
+      )}
+    </div>
+
+    {/* Input de message */}
+    <div style={{ 
+      flex: 1, 
+      position: 'relative',
+      backgroundColor: '#3a3a3a',
+      borderRadius: '20px',
+      border: '2px solid transparent',
+      transition: 'border-color 0.2s ease'
+    }}>
+      <input
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+        placeholder="Écris ton message..."
+        style={{
+          width: '100%',
+          padding: '12px 16px',
+          borderRadius: '20px',
+          backgroundColor: 'transparent',
+          border: 'none',
+          color: '#fff',
+          fontSize: '14px',
+          outline: 'none',
+          resize: 'none'
+        }}
+        onFocus={(e) => {
+          e.target.parentElement.style.borderColor = '#007AFF';
+        }}
+        onBlur={(e) => {
+          e.target.parentElement.style.borderColor = 'transparent';
+        }}
+      />
+    </div>
+
+    {/* Boutons d'action */}
+    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+      {/* Bouton micro */}
+      <button
+        onMouseDown={() => {
+          pressStart.current = Date.now();
+          pressTimer.current = setTimeout(() => {
+            startAudioRecording();
+          }, 400);
+        }}
+        onMouseUp={() => {
+          clearTimeout(pressTimer.current);
+          const duration = Date.now() - pressStart.current;
+          if (duration < 400) {
+            startAudioRecording();
+          } else if (recording) {
+            stopAudioRecording(true);
+          }
+        }}
+        onMouseLeave={() => {
+          clearTimeout(pressTimer.current);
+          if (recording) {
+            stopAudioRecording(true);
+          }
+        }}
+        style={{
+          background: recording 
+            ? 'linear-gradient(135deg, #ff4757, #ff3742)' 
+            : 'linear-gradient(135deg, #5cb85c, #449d44)',
+          border: 'none',
+          color: '#fff',
+          width: '40px',
+          height: '40px',
+          borderRadius: '50%',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '16px',
+          transition: 'all 0.2s ease',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+          animation: recording ? 'pulse 1s infinite' : 'none'
+        }}
+        onMouseEnter={(e) => {
+          if (!recording) e.target.style.transform = 'scale(1.05)';
+        }}
+        onMouseLeave={(e) => {
+          clearTimeout(pressTimer.current);
+          if (recording) {
+            stopAudioRecording(true);
+          }
+          if (!recording) e.target.style.transform = 'scale(1)';
+        }}
+        title={recording ? "Relâche pour arrêter" : "Maintenir pour enregistrer"}
+        type="button"
+      >
+        🎤
+      </button>
+
+      {/* Bouton envoyer */}
+      <button
+        onClick={handleSendMessage}
+        disabled={!message.trim()}
+        style={{
+          background: message.trim() 
+            ? 'linear-gradient(135deg, #007AFF, #0056CC)' 
+            : '#666',
+          border: 'none',
+          color: '#fff',
+          width: '40px',
+          height: '40px',
+          borderRadius: '50%',
+          cursor: message.trim() ? 'pointer' : 'not-allowed',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '16px',
+          transition: 'all 0.2s ease',
+          boxShadow: message.trim() ? '0 2px 8px rgba(0,122,255,0.3)' : 'none'
+        }}
+        onMouseEnter={(e) => {
+          if (message.trim()) e.target.style.transform = 'scale(1.05)';
+        }}
+        onMouseLeave={(e) => {
+          if (message.trim()) e.target.style.transform = 'scale(1)';
+        }}
+        title="Envoyer"
+        type="button"
+      >
+        ➤
+      </button>
+    </div>
+
+    {/* Boutons conditionnels pour audio et image */}
+    {audioBlob && (
+      <button
+        onClick={handleSendAudio}
+        style={{
+          background: 'linear-gradient(135deg, #FFA500, #FF8C00)',
+          border: 'none',
+          color: '#fff',
+          width: '40px',
+          height: '40px',
+          borderRadius: '50%',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '16px',
+          position: 'absolute',
+          right: '70px',
+          bottom: '16px',
+          boxShadow: '0 4px 16px rgba(255,165,0,0.4)',
+          animation: 'bounce 0.5s ease-in-out'
+        }}
+        title="Envoyer l'audio"
+        type="button"
+      >
+        🔊
+      </button>
+    )}
+
+    {imageFile && (
+      <button
+        onClick={handleSendImage}
+        style={{
+          background: 'linear-gradient(135deg, #28a745, #20a036)',
+          border: 'none',
+          color: '#fff',
+          width: '40px',
+          height: '40px',
+          borderRadius: '50%',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '16px',
+          position: 'absolute',
+          right: '70px',
+          bottom: '16px',
+          boxShadow: '0 4px 16px rgba(40,167,69,0.4)',
+          animation: 'bounce 0.5s ease-in-out'
+        }}
+        title="Envoyer l'image"
+        type="button"
+      >
+        📸
+      </button>
+    )}
+  </div>
+)}
       </div>
     </div>
+    </>
   );
 };
 

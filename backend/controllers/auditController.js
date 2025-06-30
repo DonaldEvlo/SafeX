@@ -52,7 +52,7 @@ exports.getWeeklyLogins = async (req, res) => {
     const auditLogsRef = admin.firestore().collection('audit_logs');
 
     const snapshot = await auditLogsRef
-      .where('action', '==', 'Déconnexion')
+      .where('action', '==', 'Connexion')
       .where('timestamp', '>=', lastWeek)
       .get();
 

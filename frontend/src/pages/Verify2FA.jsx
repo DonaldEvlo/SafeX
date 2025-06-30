@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getAuth } from 'firebase/auth'
+import { getFirestore, doc, getDoc } from 'firebase/firestore'
 
 const Verify2FA = () => {
   const [otp, setOtp] = useState('')
@@ -14,7 +15,10 @@ const Verify2FA = () => {
   const token = localStorage.getItem('token')
 
   useEffect(() => {
-    if (!token) {
+    const auth = getAuth()
+    const currentUser = auth.currentUser
+
+    if (!currentUser || !token) {
       navigate('/login')
       return
     }
@@ -37,7 +41,8 @@ const Verify2FA = () => {
 
         const data = await res.json()
         if (!data.mfaRequired) {
-          navigate('/chat')
+          const role = await getUserRoleFromFirestore(currentUser.uid)
+          navigate(role === 'admin' ? '/admin-log' : '/chat')
         } else {
           setLoading(false)
         }
@@ -49,6 +54,15 @@ const Verify2FA = () => {
 
     check2FAStatus()
   }, [navigate, token])
+
+  const getUserRoleFromFirestore = async (uid) => {
+    const db = getFirestore()
+    const userDoc = await getDoc(doc(db, 'users', uid))
+    if (userDoc.exists()) {
+      return userDoc.data().role || 'user'
+    }
+    return 'user'
+  }
 
   useEffect(() => {
     if (countdown > 0) {
@@ -103,14 +117,12 @@ const Verify2FA = () => {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Code incorrect')
 
-      // Récupération userId Firebase
       const auth = getAuth()
       const currentUser = auth.currentUser
       if (currentUser) {
         const userId = currentUser.uid
 
-        // Envoi audit de connexion
-        const auditRes = await fetch('http://localhost:3000/api/audit', {
+        await fetch('http://localhost:3000/api/audit', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -126,16 +138,14 @@ const Verify2FA = () => {
           }),
         })
 
-        if (!auditRes.ok) {
-          const auditError = await auditRes.json()
-          console.error('Erreur audit:', auditError.error || 'Erreur inconnue')
-        }
+        const role = await getUserRoleFromFirestore(userId)
+        setMessage('✅ Vérification réussie ! Redirection...')
+        setTimeout(() => {
+          navigate(role === 'admin' ? '/admin-log' : '/chat')
+        }, 1500)
       } else {
-        console.warn('Utilisateur non connecté, audit non envoyé')
+        throw new Error("Utilisateur non connecté.")
       }
-
-      setMessage('✅ Vérification réussie ! Redirection...')
-      setTimeout(() => navigate('/chat'), 1500)
     } catch (err) {
       setError(`❌ ${err.message}`)
       setOtp('')
@@ -150,135 +160,296 @@ const Verify2FA = () => {
 
   if (loading) {
     return (
-      <div
-        style={{
+      <div style={{ 
+        minHeight: '100vh',
+        backgroundColor: '#0f172a',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '20px'
+      }}>
+        <div style={{
           maxWidth: '400px',
-          margin: '50px auto',
-          padding: '30px',
+          width: '100%',
+          padding: '40px',
+          backgroundColor: '#1e293b',
+          borderRadius: '16px',
+          border: '1px solid #334155',
+          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.1)',
           textAlign: 'center',
-        }}
-      >
-        <div>🔄 Vérification du statut 2FA...</div>
+          color: '#e2e8f0'
+        }}>
+          <div style={{
+            fontSize: '18px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '12px'
+          }}>
+            <div style={{
+              width: '24px',
+              height: '24px',
+              border: '3px solid #3b82f6',
+              borderTop: '3px solid transparent',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite'
+            }}></div>
+            Vérification du statut 2FA...
+          </div>
+          <style>
+            {`
+              @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+              }
+            `}
+          </style>
+        </div>
       </div>
     )
   }
 
   return (
-    <div
-      style={{
+    <div style={{
+      minHeight: '100vh',
+      backgroundColor: '#0f172a',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '20px'
+    }}>
+      <div style={{
         maxWidth: '400px',
-        margin: '50px auto',
-        padding: '30px',
-        backgroundColor: '#f8f9fa',
-        borderRadius: '10px',
-        boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-      }}
-    >
-      <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-        <h2>🔐 Vérification 2FA</h2>
-        <div
-          style={{
-            backgroundColor: '#fff3cd',
-            padding: '10px',
-            borderRadius: '5px',
-            fontSize: '14px',
-            color: '#856404',
-            marginTop: '10px',
-          }}
-        >
-          ⚠️ <strong>Mode test CallMeBot</strong>
-          <br />
-          Le code sera envoyé au numéro administrateur
+        width: '100%',
+        padding: '40px',
+        backgroundColor: '#1e293b',
+        borderRadius: '16px',
+        border: '1px solid #334155',
+        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.1)',
+      }}>
+        {/* Header */}
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <div style={{
+            fontSize: '48px',
+            marginBottom: '16px'
+          }}>
+            🔐
+          </div>
+          <h2 style={{
+            fontSize: '28px',
+            fontWeight: '700',
+            color: '#f1f5f9',
+            margin: '0 0 16px 0'
+          }}>
+            Vérification 2FA
+          </h2>
+          <p style={{
+            color: '#94a3b8',
+            fontSize: '16px',
+            margin: '0'
+          }}>
+            Entrez le code de vérification reçu
+          </p>
         </div>
-      </div>
 
-      <div style={{ marginBottom: '20px' }}>
-        <input
-          type="text"
-          placeholder="Code à 6 chiffres"
-          value={otp}
-          onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+        {/* Test Mode Alert */}
+        <div style={{
+          backgroundColor: 'rgba(251, 191, 36, 0.1)',
+          border: '1px solid rgba(251, 191, 36, 0.3)',
+          padding: '16px',
+          borderRadius: '12px',
+          marginBottom: '24px',
+          textAlign: 'center'
+        }}>
+          <div style={{
+            color: '#fbbf24',
+            fontSize: '14px',
+            fontWeight: '500'
+          }}>
+            <span style={{ fontSize: '16px', marginRight: '8px' }}>⚠️</span>
+            <strong>Mode test CallMeBot</strong>
+          </div>
+          <div style={{
+            color: '#d97706',
+            fontSize: '13px',
+            marginTop: '4px'
+          }}>
+            Le code sera envoyé au numéro administrateur
+          </div>
+        </div>
+
+        {/* OTP Input */}
+        <div style={{ marginBottom: '24px' }}>
+          <input
+            type="text"
+            placeholder="• • • • • •"
+            value={otp}
+            onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            style={{
+              width: '100%',
+              padding: '20px',
+              fontSize: '24px',
+              fontWeight: '600',
+              textAlign: 'center',
+              backgroundColor: '#334155',
+              border: `2px solid ${otp.length === 6 ? '#10b981' : '#475569'}`,
+              borderRadius: '12px',
+              letterSpacing: '8px',
+              color: '#f1f5f9',
+              outline: 'none',
+              transition: 'all 0.2s ease',
+              boxSizing: 'border-box'
+            }}
+            maxLength={6}
+            onFocus={(e) => {
+              e.target.style.borderColor = '#3b82f6'
+              e.target.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)'
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = otp.length === 6 ? '#10b981' : '#475569'
+              e.target.style.boxShadow = 'none'
+            }}
+          />
+        </div>
+
+        {/* Verify Button */}
+        <button
+          onClick={handleVerify}
+          disabled={otp.length !== 6}
           style={{
             width: '100%',
-            padding: '15px',
-            fontSize: '18px',
-            textAlign: 'center',
-            border: '2px solid #ddd',
-            borderRadius: '5px',
-            letterSpacing: '3px',
+            padding: '16px',
+            marginBottom: '16px',
+            backgroundColor: otp.length === 6 ? '#10b981' : '#374151',
+            color: otp.length === 6 ? '#ffffff' : '#9ca3af',
+            border: 'none',
+            borderRadius: '12px',
+            fontSize: '16px',
+            fontWeight: '600',
+            cursor: otp.length === 6 ? 'pointer' : 'not-allowed',
+            transition: 'all 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px'
           }}
-          maxLength={6}
-        />
-      </div>
+          onMouseEnter={(e) => {
+            if (otp.length === 6) {
+              e.target.style.backgroundColor = '#059669'
+              e.target.style.transform = 'translateY(-1px)'
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (otp.length === 6) {
+              e.target.style.backgroundColor = '#10b981'
+              e.target.style.transform = 'translateY(0)'
+            }
+          }}
+        >
+          <span>✅</span>
+          Vérifier le code
+        </button>
 
-      <button
-        onClick={handleVerify}
-        disabled={otp.length !== 6}
-        style={{
-          width: '100%',
-          padding: '15px',
-          marginBottom: '10px',
-          backgroundColor: otp.length === 6 ? '#007bff' : '#ccc',
-          color: 'white',
-          border: 'none',
-          borderRadius: '5px',
-          fontSize: '16px',
-          cursor: otp.length === 6 ? 'pointer' : 'not-allowed',
-        }}
-      >
-        ✅ Vérifier le code
-      </button>
-
-      <button
-        onClick={sendOTP}
-        disabled={sending || countdown > 0}
-        style={{
-          width: '100%',
-          padding: '12px',
-          backgroundColor: sending || countdown > 0 ? '#6c757d' : '#28a745',
-          color: 'white',
-          border: 'none',
-          borderRadius: '5px',
-          cursor: sending || countdown > 0 ? 'not-allowed' : 'pointer',
-        }}
-      >
-        {sending
-          ? '📤 Envoi en cours...'
-          : countdown > 0
-          ? `🕐 Renvoyer dans ${formatCountdown(countdown)}`
-          : '📱 Envoyer le code WhatsApp'}
-      </button>
-
-      {message && (
-        <div
+        {/* Send OTP Button */}
+        <button
+          onClick={sendOTP}
+          disabled={sending || countdown > 0}
           style={{
-            marginTop: '15px',
-            padding: '10px',
-            backgroundColor: '#d4edda',
-            color: '#155724',
-            borderRadius: '5px',
+            width: '100%',
+            padding: '14px',
+            backgroundColor: sending || countdown > 0 ? '#374151' : '#3b82f6',
+            color: sending || countdown > 0 ? '#9ca3af' : '#ffffff',
+            border: 'none',
+            borderRadius: '12px',
+            fontSize: '15px',
+            fontWeight: '500',
+            cursor: sending || countdown > 0 ? 'not-allowed' : 'pointer',
+            transition: 'all 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px'
+          }}
+          onMouseEnter={(e) => {
+            if (!sending && countdown === 0) {
+              e.target.style.backgroundColor = '#2563eb'
+              e.target.style.transform = 'translateY(-1px)'
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!sending && countdown === 0) {
+              e.target.style.backgroundColor = '#3b82f6'
+              e.target.style.transform = 'translateY(0)'
+            }
+          }}
+        >
+          {sending ? (
+            <>
+              <div style={{
+                width: '16px',
+                height: '16px',
+                border: '2px solid #9ca3af',
+                borderTop: '2px solid transparent',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+              }}></div>
+              Envoi en cours...
+            </>
+          ) : countdown > 0 ? (
+            <>
+              <span>🕐</span>
+              Renvoyer dans {formatCountdown(countdown)}
+            </>
+          ) : (
+            <>
+              <span>📱</span>
+              Envoyer le code WhatsApp
+            </>
+          )}
+        </button>
+
+        {/* Success Message */}
+        {message && (
+          <div style={{
+            marginTop: '20px',
+            padding: '16px',
+            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            border: '1px solid rgba(16, 185, 129, 0.3)',
+            borderRadius: '12px',
             fontSize: '14px',
+            color: '#10b981',
             whiteSpace: 'pre-line',
-          }}
-        >
-          {message}
-        </div>
-      )}
+            lineHeight: '1.5'
+          }}>
+            {message}
+          </div>
+        )}
 
-      {error && (
-        <div
-          style={{
-            marginTop: '15px',
-            padding: '10px',
-            backgroundColor: '#f8d7da',
-            color: '#721c24',
-            borderRadius: '5px',
+        {/* Error Message */}
+        {error && (
+          <div style={{
+            marginTop: '20px',
+            padding: '16px',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            borderRadius: '12px',
             fontSize: '14px',
-          }}
-        >
-          {error}
-        </div>
-      )}
+            color: '#ef4444',
+            lineHeight: '1.5'
+          }}>
+            {error}
+          </div>
+        )}
+
+        <style>
+          {`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `}
+        </style>
+      </div>
     </div>
   )
 }

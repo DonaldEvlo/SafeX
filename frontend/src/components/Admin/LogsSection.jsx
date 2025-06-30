@@ -58,7 +58,12 @@ const LogsSection = () => {
   useEffect(() => {
     const fetchLogs = async () => {
       try {
-        const res = await fetch('http://localhost:3000/api/audit')
+         const token = localStorage.getItem('token')
+
+    const headers = {
+      Authorization: `Bearer ${token}`
+    }
+        const res = await fetch('http://localhost:3000/api/audit', { headers })
         const data = await res.json()
         const parsed = data.map(log => ({
           Action: log.action,

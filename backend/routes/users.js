@@ -2,9 +2,11 @@ const express = require('express')
 const router = express.Router()
 const admin = require('../services/firebaseAdmin')
 const auth = require('../middleware/authMiddleware')
+const checkAdminRole = require('../middleware/checkAdminRole')
+
 
 // 🔹 GET /api/users — liste tous les utilisateurs
-router.get('/', async (req, res) => {
+router.get('/',checkAdminRole ,async (req, res) => {
   try {
     const snapshot = await admin.firestore().collection('users').get()
 
@@ -33,7 +35,7 @@ router.get('/', async (req, res) => {
   }
 })
 
-router.put('/profile', auth, async (req, res) => {
+router.put('/profile' ,auth, async (req, res) => {
   const { username, profileUrl } = req.body;
   const uid = req.user.uid; // récupéré depuis verifyToken
 
@@ -57,7 +59,7 @@ router.put('/profile', auth, async (req, res) => {
 
 
 // 🔹 DELETE /api/users/:uid — supprimer un utilisateur
-router.delete('/:uid', async (req, res) => {
+router.delete('/:uid',checkAdminRole ,async (req, res) => {
   const { uid } = req.params
   try {
     await admin.auth().deleteUser(uid)
@@ -70,7 +72,7 @@ router.delete('/:uid', async (req, res) => {
 })
 
 // 🔹 POST /api/users/:uid/suspend — suspendre un utilisateur
-router.post('/:uid/suspend', async (req, res) => {
+router.post('/:uid/suspend',checkAdminRole ,async (req, res) => {
   const { uid } = req.params
   try {
     await admin.auth().updateUser(uid, { disabled: true })
@@ -82,7 +84,7 @@ router.post('/:uid/suspend', async (req, res) => {
 })
 
 // 🔹 POST /api/users/:uid/unsuspend — lever la suspension
-router.post('/:uid/unsuspend', async (req, res) => {
+router.post('/:uid/unsuspend',checkAdminRole ,async (req, res) => {
   const { uid } = req.params
   try {
     await admin.auth().updateUser(uid, { disabled: false })
@@ -94,7 +96,7 @@ router.post('/:uid/unsuspend', async (req, res) => {
 })
 
 // 🔹 POST /api/users/signout-all — invalider tous les tokens (déconnexion globale)
-router.post('/signout-all', async (req, res) => {
+router.post('/signout-all',checkAdminRole ,async (req, res) => {
   try {
     const listUsers = await admin.auth().listUsers()
     const promises = listUsers.users.map(user =>
@@ -109,7 +111,7 @@ router.post('/signout-all', async (req, res) => {
 })
 
 // 🔹 POST /api/users/:uid/signout — invalider un seul token utilisateur
-router.post('/:uid/signout', async (req, res) => {
+router.post('/:uid/signout',checkAdminRole ,async (req, res) => {
   const { uid } = req.params
   try {
     await admin.auth().revokeRefreshTokens(uid)

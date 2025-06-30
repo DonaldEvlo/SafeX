@@ -11,11 +11,16 @@ const verifyToken = async (req, res, next) => {
 
   try {
     const decodedToken = await admin.auth().verifyIdToken(token)
+
+    if (!decodedToken || !decodedToken.uid) {
+      return res.status(401).json({ error: 'Utilisateur invalide' })
+    }
+
     req.user = decodedToken
     next()
   } catch (error) {
-    console.error('Erreur de vérification du token :', error)
-    res.status(403).json({ error: 'Token invalide' })
+    console.error('❌ Erreur vérification token:', error)
+    return res.status(401).json({ error: 'Token invalide' })
   }
 }
 
