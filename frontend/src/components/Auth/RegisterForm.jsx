@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { createUserWithEmailAndPassword } from 'firebase/auth'
+import React,{ useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { auth } from '../../services/firebase'
 import '../../styles/RegisterForm.css'
 
@@ -116,7 +116,7 @@ const RegisterForm = () => {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password)
       const token = await userCredential.user.getIdToken()
 
-      const res = await fetch('http://localhost:3000/api/auth/signup', {
+      const res = await fetch('http://localhost:5000/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -131,7 +131,7 @@ const RegisterForm = () => {
 
       const userId = userCredential.user.uid
       try {
-        await fetch('http://localhost:3000/api/audit', {
+        await fetch('http://localhost:5000/api/audit', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

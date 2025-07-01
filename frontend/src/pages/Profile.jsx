@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
 import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
+import React,{ useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db, storage } from '../services/firebase';
 
@@ -42,7 +42,7 @@ const Profile = () => {
     try {
       const token = await currentUser.getIdToken();
 
-      await fetch('http://localhost:3000/api/auth/logout', {
+      await fetch('http://localhost:5000/api/auth/logout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -51,7 +51,7 @@ const Profile = () => {
         body: JSON.stringify({ token }),
       });
 
-      await fetch('http://localhost:3000/api/audit', {
+      await fetch('http://localhost:5000/api/audit', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -135,7 +135,7 @@ const Profile = () => {
     }));
 
     // Appel à ton API audit pour logger la mise à jour du profil
-    await fetch('http://localhost:3000/api/audit', {
+    await fetch('http://localhost:5000/api/audit', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

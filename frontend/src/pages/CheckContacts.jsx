@@ -1,5 +1,5 @@
 import { getAuth, onAuthStateChanged } from 'firebase/auth'
-import React, { useEffect, useState } from 'react'
+import React,{ useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 const CheckContacts = () => {
@@ -25,7 +25,7 @@ const CheckContacts = () => {
 
       try {
         const token = await user.getIdToken()
-        const res = await fetch('http://localhost:3000/api/contacts', {
+        const res = await fetch('http://localhost:5000/api/contacts', {
           headers: { Authorization: `Bearer ${token}` }
         })
 
@@ -62,7 +62,7 @@ const CheckContacts = () => {
       }
       const token = await user.getIdToken()
 
-      const res = await fetch(`http://localhost:3000/api/users/find?email=${encodeURIComponent(searchEmail)}`, {
+      const res = await fetch(`http://localhost:5000/api/users/find?email=${encodeURIComponent(searchEmail)}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
 
@@ -95,7 +95,7 @@ const CheckContacts = () => {
       }
       const token = await user.getIdToken()
 
-      const res = await fetch('http://localhost:3000/api/contacts', {
+      const res = await fetch('http://localhost:5000/api/contacts', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -140,7 +140,7 @@ const startChat = async (contactUid) => {
 
     const token = await user.getIdToken()
 
-    const res = await fetch(`http://localhost:3000/api/chats/existing-or-create?contactUid=${contactUid}`, {
+    const res = await fetch(`http://localhost:5000/api/chats/existing-or-create?contactUid=${contactUid}`, {
       headers: {
         Authorization: `Bearer ${token}`
       }

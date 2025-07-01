@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react'
 import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis, YAxis
+    Area,
+    AreaChart,
+    CartesianGrid,
+    Cell,
+    Pie,
+    PieChart,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis, YAxis
 } from 'recharts'
 const StatsCardsSection = ({ stats }) => {
   return (
@@ -117,9 +117,9 @@ const DashboardSection = () => {
         }
 
         const [usersRes, messagesRes, loginsRes] = await Promise.all([
-          fetch('http://localhost:3000/api/users', { headers }),
-          fetch('http://localhost:3000/api/messages/count', { headers }),
-          fetch('http://localhost:3000/api/audit/logins-week', { headers }),
+          fetch('http://localhost:5000/api/users', { headers }),
+          fetch('http://localhost:5000/api/messages/count', { headers }),
+          fetch('http://localhost:5000/api/audit/logins-week', { headers }),
         ])
 
         if (!usersRes.ok || !messagesRes.ok || !loginsRes.ok) {

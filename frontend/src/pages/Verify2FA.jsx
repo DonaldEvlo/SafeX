@@ -1,7 +1,7 @@
+import { getAuth } from 'firebase/auth'
+import { doc, getDoc, getFirestore } from 'firebase/firestore'
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getAuth } from 'firebase/auth'
-import { getFirestore, doc, getDoc } from 'firebase/firestore'
 
 const Verify2FA = () => {
   const [otp, setOtp] = useState('')
@@ -26,7 +26,7 @@ const Verify2FA = () => {
     const check2FAStatus = async () => {
       try {
         setLoading(true)
-        const res = await fetch('http://localhost:3000/api/auth/mfa-status', {
+        const res = await fetch('http://localhost:5000/api/auth/mfa-status', {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${token}`,
@@ -76,7 +76,7 @@ const Verify2FA = () => {
       setSending(true)
       setError('')
       setMessage('')
-      const res = await fetch('http://localhost:3000/api/auth/send-otp', {
+      const res = await fetch('http://localhost:5000/api/auth/send-otp', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -105,7 +105,7 @@ const Verify2FA = () => {
     try {
       setError('')
       setMessage('')
-      const res = await fetch('http://localhost:3000/api/auth/verify-otp', {
+      const res = await fetch('http://localhost:5000/api/auth/verify-otp', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -122,7 +122,7 @@ const Verify2FA = () => {
       if (currentUser) {
         const userId = currentUser.uid
 
-        await fetch('http://localhost:3000/api/audit', {
+        await fetch('http://localhost:5000/api/audit', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

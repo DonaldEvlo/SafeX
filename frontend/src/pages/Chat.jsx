@@ -1,21 +1,22 @@
+
 import { getAuth, onAuthStateChanged, } from 'firebase/auth';
 import {
-  addDoc,
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  limit,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-  updateDoc,
-  where,
-  writeBatch
+    addDoc,
+    collection,
+    doc,
+    getDoc,
+    getDocs,
+    limit,
+    onSnapshot,
+    orderBy,
+    query,
+    serverTimestamp,
+    updateDoc,
+    where,
+    writeBatch
 } from 'firebase/firestore';
 import { getDownloadURL, getStorage, ref, uploadBytes } from 'firebase/storage';
-import React, { useEffect, useRef, useState } from 'react';
+import React,{ useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { db, storage } from '../services/firebase';
 import { decryptMessage, encryptMessage } from '../utils/encryption';
@@ -495,7 +496,7 @@ const Chat = () => {
 
       // Audit
       const token = await currentUser.getIdToken();
-      await fetch('http://localhost:3000/api/messages/log', {
+      await fetch('http://localhost:5000/api/messages/log', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -537,7 +538,7 @@ const Chat = () => {
       });
 
       const token = await currentUser.getIdToken();
-      await fetch('http://localhost:3000/api/messages/log', {
+      await fetch('http://localhost:5000/api/messages/log', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -581,7 +582,7 @@ const Chat = () => {
       });
 
       const token = await currentUser.getIdToken();
-      await fetch('http://localhost:3000/api/messages/log', {
+      await fetch('http://localhost:5000/api/messages/log', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -629,7 +630,7 @@ const Chat = () => {
       });
 
       const token = await currentUser.getIdToken();
-      await fetch('http://localhost:3000/api/messages/log', {
+      await fetch('http://localhost:5000/api/messages/log', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

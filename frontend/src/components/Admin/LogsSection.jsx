@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react'
+import React,{ useEffect, useMemo, useState } from 'react'
 import SectionCard from './SectionCard'
 
 const Table = ({ columns, data, onSort, sortConfig }) => {
@@ -63,7 +63,7 @@ const LogsSection = () => {
     const headers = {
       Authorization: `Bearer ${token}`
     }
-        const res = await fetch('http://localhost:3000/api/audit', { headers })
+        const res = await fetch('http://localhost:5000/api/audit', { headers })
         const data = await res.json()
         const parsed = data.map(log => ({
           Action: log.action,

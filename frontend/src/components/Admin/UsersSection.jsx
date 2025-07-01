@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React,{ useEffect, useState } from 'react'
 import SectionCard from './SectionCard'
 
 const UsersSection = () => {
@@ -13,7 +13,7 @@ const UsersSection = () => {
     const headers = { Authorization: `Bearer ${token}` }
 
     try {
-      const res = await fetch('http://localhost:3000/api/users', { headers })
+      const res = await fetch('http://localhost:5000/api/users', { headers })
       const data = await res.json()
       setUsers(data)
       setFilteredUsers(data)
@@ -59,7 +59,7 @@ const UsersSection = () => {
       const token = localStorage.getItem('token')
       const headers = { Authorization: `Bearer ${token}` }
 
-      await fetch(`http://localhost:3000${endpoint}`, { method, headers })
+      await fetch(`http://localhost:5000${endpoint}`, { method, headers })
       fetchUsers()
     } catch (err) {
       console.error(`Erreur action ${action}`, err)
@@ -71,7 +71,7 @@ const UsersSection = () => {
       const token = localStorage.getItem('token')
       const headers = { Authorization: `Bearer ${token}` }
 
-      await fetch(`http://localhost:3000/api/users/signout-all`, { method: 'POST', headers })
+      await fetch(`http://localhost:5000/api/users/signout-all`, { method: 'POST', headers })
       fetchUsers()
     } catch (err) {
       console.error('Erreur déconnexion globale', err)
