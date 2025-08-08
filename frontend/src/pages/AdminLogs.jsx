@@ -1,47 +1,94 @@
-import React, { useState } from 'react'
-import UsersSection from '../components/Admin/UsersSection'
-import LogsSection from '../components/Admin/LogsSection'
-import DashboardSection from '../components/Admin/DashboardSection'
-import AdminProfileSection from '../components/Admin/AdminProfileSection'
+import React, { useState } from 'react';
+import UsersSection from '../components/Admin/UsersSection';
+import LogsSection from '../components/Admin/LogsSection';
+import DashboardSection from '../components/Admin/DashboardSection';
+import AdminProfileSection from '../components/Admin/AdminProfileSection';
 
 const AdminLogs = () => {
-  const [activeSection, setActiveSection] = useState('dashboard')
+  const [activeSection, setActiveSection] = useState('dashboard');
 
   const handleLogout = () => {
-    localStorage.removeItem('token')
-    window.location.href = '/login'
-  }
+    localStorage.removeItem('token');
+    window.location.href = '/login';
+  };
 
   const navItems = [
     { key: 'dashboard', icon: '🏠', label: 'Dashboard' },
     { key: 'users', icon: '👥', label: 'Utilisateurs' },
     { key: 'logs', icon: '🔍', label: 'Logs d’audit' },
     // { key: 'profile', icon: '👤', label: 'Profil' },
-  ]
+  ];
 
   return (
-    <div className="flex min-h-screen bg-[#0f1114] text-white font-sans">
+    <div style={{
+      display: 'flex',
+      minHeight: '100vh',
+      backgroundColor: '#0f1114',
+      color: '#ffffff',
+      fontFamily: 'Arial, sans-serif'
+    }}>
       {/* Sidebar */}
-      <aside className="w-72 bg-[#111418] p-6 border-r border-[#1f2937] shadow-lg flex flex-col justify-between">
+      <aside style={{
+        width: '288px',
+        backgroundColor: '#111418',
+        padding: '24px',
+        borderRight: '1px solid #1f2937',
+        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between'
+      }}>
         <div>
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold mb-1 text-white">🛡️ SafeX Admin</h1>
-            <p className="text-sm text-[#9caaba]">Panneau de contrôle</p>
+          <div style={{ marginBottom: '32px' }}>
+            <h1 style={{
+              fontSize: '24px',
+              fontWeight: '700',
+              marginBottom: '4px',
+              color: '#ffffff'
+            }}>
+              🛡️ SafeX Admin
+            </h1>
+            <p style={{
+              fontSize: '14px',
+              color: '#9caaba'
+            }}>
+              Panneau de contrôle
+            </p>
           </div>
 
-          <nav className="flex flex-col gap-2">
+          <nav style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px'
+          }}>
             {navItems.map(({ key, icon, label }) => (
               <button
                 key={key}
                 onClick={() => setActiveSection(key)}
-                className={`flex items-center gap-3 px-4 py-2 rounded-full transition-all duration-200 
-                  ${
-                    activeSection === key
-                      ? 'bg-[#1f2937] text-white'
-                      : 'text-[#9caaba] hover:bg-[#1a1e23] hover:text-white'
-                  }`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '8px 16px',
+                  borderRadius: '9999px',
+                  transition: 'all 0.2s',
+                  backgroundColor: activeSection === key ? '#1f2937' : 'transparent',
+                  color: activeSection === key ? '#ffffff' : '#9caaba',
+                  fontSize: '16px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  textAlign: 'left'
+                }}
+                onMouseEnter={(e) => {
+                  if (activeSection !== key) e.target.style.backgroundColor = '#1a1e23';
+                  if (activeSection !== key) e.target.style.color = '#ffffff';
+                }}
+                onMouseLeave={(e) => {
+                  if (activeSection !== key) e.target.style.backgroundColor = 'transparent';
+                  if (activeSection !== key) e.target.style.color = '#9caaba';
+                }}
               >
-                <span className="text-lg">{icon}</span>
+                <span style={{ fontSize: '18px' }}>{icon}</span>
                 <span>{label}</span>
               </button>
             ))}
@@ -49,10 +96,32 @@ const AdminLogs = () => {
         </div>
 
         {/* Logout Button */}
-        <div className="pt-6 border-t border-[#1f2937]">
+        <div style={{
+          paddingTop: '24px',
+          borderTop: '1px solid #1f2937'
+        }}>
           <button
             onClick={handleLogout}
-            className="w-full text-left px-4 py-2 text-sm rounded-full text-red-400 hover:bg-red-600 hover:text-white transition duration-200"
+            style={{
+              width: '100%',
+              textAlign: 'left',
+              padding: '8px 16px',
+              fontSize: '14px',
+              borderRadius: '9999px',
+              color: '#f87171',
+              backgroundColor: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.backgroundColor = '#dc2626';
+              e.target.style.color = '#ffffff';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.backgroundColor = 'transparent';
+              e.target.style.color = '#f87171';
+            }}
           >
             🚪 Se déconnecter
           </button>
@@ -60,15 +129,29 @@ const AdminLogs = () => {
       </aside>
 
       {/* Content */}
-      <main className="flex-1 px-8 py-10">
-        <header className="mb-8">
-          <h2 className="text-3xl font-bold mb-1">Administration</h2>
-          <p className="text-[#9caaba] text-sm">
+      <main style={{
+        flex: '1',
+        padding: '40px 32px'
+      }}>
+        <header style={{ marginBottom: '32px' }}>
+          <h2 style={{
+            fontSize: '30px',
+            fontWeight: '700',
+            marginBottom: '4px'
+          }}>
+            Administration
+          </h2>
+          <p style={{
+            color: '#9caaba',
+            fontSize: '14px'
+          }}>
             Gérer les utilisateurs et surveiller les activités de l’application SafeX.
           </p>
         </header>
 
-        <div className="transition-all duration-300">
+        <div style={{
+          transition: 'all 0.3s'
+        }}>
           {activeSection === 'users' && <UsersSection />}
           {activeSection === 'logs' && <LogsSection />}
           {activeSection === 'dashboard' && <DashboardSection />}
@@ -76,7 +159,7 @@ const AdminLogs = () => {
         </div>
       </main>
     </div>
-  )
-}
+  );
+};
 
-export default AdminLogs
+export default AdminLogs;
